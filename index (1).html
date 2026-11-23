@@ -235,6 +235,7 @@
   .hrow .hn { grid-column: 1 / -1; font-size: 12px; color: var(--warn); line-height: 1.4; }
   .hist-foot { display: flex; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
   .hist-foot input { flex: 1; }
+  #myName:placeholder-shown { border-color: var(--warn); }
 
   /* precios */
   #pricesBlock { border-color: rgba(47,123,255,.55); background: linear-gradient(180deg, #0D1A35 0%, var(--panel) 70%); }
@@ -346,7 +347,19 @@
   .hrow.roul { border-left-color: #B06BFF; background: rgba(176,107,255,.08); }
   .hrow.roul .hd { color: #C99BFF; }
 
-  .conn-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .conn-card { margin-bottom: 16px; }
+  .conn-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
+  .crow { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; padding: 8px 10px; border-radius: 8px;
+    background: var(--bg); border-left: 3px solid var(--muted); font-size: 13px; }
+  .crow .cdot { width: 9px; height: 9px; border-radius: 50%; background: var(--danger); }
+  .crow.irc .cdot { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .crow .cname { color: var(--text); overflow-wrap: anywhere; }
+  .crow .ctime { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .crow .cinfo { grid-column: 2 / -1; font-size: 11px; color: var(--muted); }
+  .crow.panel { border-left-color: var(--warn); }
+  .crow.panel.noname { background: rgba(255,77,109,.08); border-left-color: var(--danger); }
+  .crow.overlay { border-left-color: var(--accent-2); }
+  .crow.me { box-shadow: inset 0 0 0 1px var(--border); }
 
   .footer { display: flex; justify-content: center; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 20px; letter-spacing: 0.08em; }
   .footer a.chip { display: inline-block; padding: 6px 12px; border: 1px solid var(--accent-2); border-radius: 6px; color: var(--accent-2);
@@ -360,18 +373,7 @@
 <div id="login">
   <div class="login-card">
     <h1>TIMER</h1>
-    <div id="loginForm" style="display:flex;flex-direction:column;gap:14px;">
-      <p>Entra con la cuenta que te dieron para el panel.</p>
-      <input type="email" id="loginEmail" placeholder="Correo" autocomplete="username">
-      <input type="password" id="loginPass" placeholder="Contraseña" autocomplete="current-password">
-      <button class="primary" id="btnLogin">ENTRAR</button>
-      <div class="login-err" id="loginErr"></div>
-    </div>
-    <div id="noAccess" style="display:none;flex-direction:column;gap:14px;">
-      <p>Tu cuenta entró, pero todavía no tiene permiso para usar el panel. Pásale este código al dueño del timer para que lo agregue:</p>
-      <div class="uid-box" id="noAccessUid"></div>
-      <button class="ghost" id="btnLogout2">Cerrar sesión</button>
-    </div>
+    <p id="loginMsg">Conectando...</p>
   </div>
 </div>
 <!--LOGIN-END-->
@@ -383,7 +385,7 @@
 
   <div class="brand">
     <h1>TIMER</h1>
-    <div class="who"><span>grayinner · <b id="whoEmail"></b></span><button class="ghost small" id="btnLogout">Salir</button></div>
+    <div class="who"><span>canal <b id="whoChan"></b></span></div>
   </div>
 
   <div class="preview">
@@ -658,9 +660,6 @@
   <!-- CONEXIÓN TWITCH -->
   <details class="block">
     <summary class="title">Conexión Twitch <small id="chanLabel"></small><span class="chev">&rsaquo;</span></summary>
-    <div class="sublabel">Quién está contando eventos ahora</div>
-    <div class="conn-list" id="connList"></div>
-    <hr>
     <div class="sublabel">Follows</div>
     <div class="status" id="folStatus"><span class="dot"></span><span id="folText">SIN CONFIGURAR</span></div>
     <div class="row" style="margin-top:12px;">
@@ -683,6 +682,12 @@
 
 <!-- HISTORIAL (derecha) -->
 <aside class="col-side">
+  <div class="block conn-card">
+    <div class="block-head" style="margin-bottom:10px;">
+      <div class="title">Conectados <small id="connCount"></small></div>
+    </div>
+    <div class="conn-list" id="connList"></div>
+  </div>
   <div class="block hist-card">
     <div class="block-head">
       <div class="title">Historial</div>
@@ -690,7 +695,7 @@
     </div>
     <div class="hist" id="hist"></div>
     <div class="hist-foot">
-      <input type="text" id="myName" placeholder="Tu nombre (sale en lo manual)">
+      <input type="text" id="myName" maxlength="40" placeholder="Pon tu nombre (sale en Conectados)">
       <button class="ghost small danger" id="btnClearHist">Borrar</button>
     </div>
   </div>
@@ -707,7 +712,7 @@
     query, orderByValue, endAt, limitToLast, onDisconnect
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
   import {
-    getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signOut
+    getAuth, onAuthStateChanged, signInAnonymously
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   /* ================================================================
@@ -745,7 +750,7 @@
   if (String(firebaseConfig.apiKey).startsWith("PEGA")) {
     if (!DISPLAY) {
       $("login").classList.add("show");
-      $("loginForm").innerHTML = "<p>Falta pegar la configuración de Firebase (firebaseConfig) en el código.</p>";
+      $("loginMsg").textContent = "Falta pegar la configuración de Firebase (firebaseConfig) en el código.";
     }
     throw new Error("firebaseConfig sin configurar");
   }
@@ -755,46 +760,21 @@
   const auth = getAuth(app);
 
   /* ================= ACCESO =================
-     Overlay: entra solo, como invitado (anónimo). Las reglas solo le dejan sumar.
-     Panel: entra con correo y contraseña; su UID tiene que estar en /admins. */
+     Sin cuentas: panel y overlays entran solos como invitados (anónimos).
+     Quien tenga el link del panel puede usarlo; en el panel se ve quién está conectado. */
   const firstUser = () => new Promise((res) => { const off = onAuthStateChanged(auth, (u) => { off(); res(u); }); });
-  function panelLogin() {
-    $("login").classList.add("show");
-    return new Promise((resolve) => {
-      const go = async () => {
-        $("loginErr").textContent = "";
-        const email = $("loginEmail").value.trim(), pass = $("loginPass").value;
-        if (!email || !pass) { $("loginErr").textContent = "Escribe correo y contraseña."; return; }
-        $("btnLogin").disabled = true;
-        try { const c = await signInWithEmailAndPassword(auth, email, pass); resolve(c.user); }
-        catch (e) { $("loginErr").textContent = "Correo o contraseña incorrectos."; }
-        $("btnLogin").disabled = false;
-      };
-      $("btnLogin").onclick = go;
-      $("loginPass").onkeydown = (e) => { if (e.key === "Enter") go(); };
-    });
-  }
-
   let user = await firstUser();
-  if (DISPLAY) {
-    if (!user) user = (await signInAnonymously(auth)).user;
-  } else if (!user || user.isAnonymous) {
-    user = await panelLogin();
+  if (!user) {
+    try { user = (await signInAnonymously(auth)).user; }
+    catch (e) {
+      if (!DISPLAY) { $("login").classList.add("show"); $("loginMsg").textContent = "No se pudo conectar. Revisa que el acceso Anónimo esté activado en Firebase Authentication."; }
+      throw e;
+    }
   }
-  let IS_ADMIN = false;
-  try { IS_ADMIN = (await get(ref(db, "admins/" + user.uid))).val() === true; } catch (e) {}
-  if (!DISPLAY && !IS_ADMIN) {
-    $("login").classList.add("show");
-    $("loginForm").style.display = "none";
-    $("noAccess").style.display = "flex";
-    $("noAccessUid").textContent = user.uid;
-    $("btnLogout2").onclick = () => signOut(auth).then(() => location.reload());
-    throw new Error("sin permiso de panel");
-  }
-  if (!DISPLAY) { $("login").classList.remove("show"); $("panel").classList.add("show"); }
+  const IS_ADMIN = !DISPLAY;     // los paneles crean los datos iniciales y cierran el multiplicador
+  if (!DISPLAY) $("panel").classList.add("show");
 
   // Estructura en RTDB:
-  //   /admins/{uid}: true    quién puede usar el panel (se agrega a mano en la consola)
   //   /timer       { endTime, isRunning, remainingMs, ended }
   //   /prices      precios de cada evento
   //   /boost       { isRunning, endTime, remainingMs, visible, factor, cats }
@@ -814,7 +794,7 @@
   const historyRef = ref(db, "history");
 
   const INSTANCE = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-  let myName = DISPLAY ? "" : (lsGet("kz_timer_name") || (user.email ? user.email.split("@")[0] : ""));
+  let myName = DISPLAY ? "" : (lsGet("kz_timer_name") || "");
   const whereLabel = () => DISPLAY ? "Overlay OBS" : ("Panel" + (myName ? " · " + myName : ""));
 
   // ganchos que el panel reemplaza; en el overlay no hacen nada
@@ -889,6 +869,26 @@
   const num = (v, d = 0) => { const n = Number(v); return isFinite(n) ? n : d; };
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmtF = (f) => String(Math.round(num(f, 2) * 100) / 100);   // 2 -> "2", 1.5 -> "1.5"
+
+  /* ---------------- presencia: quién está conectado ---------------- */
+  const presRef = ref(db, "presence/" + INSTANCE);
+  const SINCE = Date.now() + serverOffset;
+  const DEVICE = (() => {
+    const ua = navigator.userAgent;
+    const os = /Windows/.test(ua) ? "Windows" : /Android/.test(ua) ? "Android" : /iPhone|iPad/.test(ua) ? "iPhone/iPad" : /Mac OS/.test(ua) ? "Mac" : /Linux/.test(ua) ? "Linux" : "otro";
+    const br = /OBS\//.test(ua) ? "OBS" : /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "navegador";
+    return br + " en " + os;
+  })();
+  let ircLive = false;
+  function announce() {
+    set(presRef, {
+      kind: RULETA ? "ruleta" : DISPLAY ? "overlay" : "panel",
+      name: myName.slice(0, 40), where: whereLabel(), irc: ircLive, dev: DEVICE, since: SINCE, ts: now()
+    }).catch(() => {});
+  }
+  onValue(ref(db, ".info/connected"), (s) => {
+    if (s.val() === true) { onDisconnect(presRef).remove(); announce(); }
+  });
 
   /* ================= RULETA =================
      El panel que gira decide el resultado al azar y lo guarda en Firebase junto con la
@@ -1282,16 +1282,6 @@
     } catch (e) {}
   })();
 
-  /* ---------------- presencia: quién está contando ---------------- */
-  const presRef = ref(db, "presence/" + INSTANCE);
-  let ircLive = false;
-  function announce() {
-    set(presRef, { where: whereLabel(), irc: ircLive, ts: now() }).catch(() => {});
-  }
-  onValue(ref(db, ".info/connected"), (s) => {
-    if (s.val() === true) { onDisconnect(presRef).remove(); announce(); }
-  });
-
   /* ================================================================
      TWITCH CHAT (IRC anónimo): subs, regalos, bits, raids
   ================================================================ */
@@ -1590,9 +1580,8 @@
   if (!DISPLAY) {
     const flash = (id, msg) => { const el = $(id); el.textContent = msg; clearTimeout(el._t); el._t = setTimeout(() => el.textContent = "", 3500); };
 
-    $("whoEmail").textContent = user.email || "";
+    $("whoChan").textContent = TW_CHANNEL;
     $("chanLabel").textContent = TW_CHANNEL;
-    $("btnLogout").addEventListener("click", () => signOut(auth).then(() => location.reload()));
 
     /* ---------------- nombre ---------------- */
     $("myName").value = myName;
@@ -1832,16 +1821,30 @@
     });
 
     /* ---------------- conexiones ---------------- */
+    // paneles primero; un panel sin nombre se marca en rojo para que lo notes
+    let presList = [];
+    const ago = (ts) => { const s = Math.max(0, Math.floor((now() - num(ts)) / 1000)); return s < 60 ? "recién" : s < 3600 ? Math.floor(s / 60) + " min" : Math.floor(s / 3600) + " h " + Math.floor((s % 3600) / 60) + " min"; };
+    function renderPresence() {
+      const el = $("connList");
+      const panels = presList.filter((p) => p.kind === "panel").length;
+      $("connCount").textContent = presList.length ? `${presList.length} · ${panels} panel${panels === 1 ? "" : "es"}` : "";
+      if (!presList.length) { el.innerHTML = `<div class="status err"><span class="dot"></span>Nadie conectado</div>`; return; }
+      el.innerHTML = presList.map((p) => {
+        const isPanel = p.kind === "panel";
+        const name = isPanel ? (p.name ? "Panel · " + p.name : "Panel SIN NOMBRE") : (p.kind === "ruleta" ? "Overlay ruleta" : "Overlay timer");
+        const cls = ["crow", isPanel ? "panel" : "overlay", isPanel && !p.name ? "noname" : "", p.irc ? "irc" : "", p.id === INSTANCE ? "me" : ""].join(" ");
+        const chat = p.kind === "ruleta" ? "" : (p.irc ? "chat conectado" : "chat desconectado") + " · ";
+        return `<div class="${cls}"><span class="cdot"></span><span class="cname">${esc(name)}${p.id === INSTANCE ? " (tú)" : ""}</span><span class="ctime">${ago(p.since)}</span><span class="cinfo">${chat}${esc(p.dev || "")}</span></div>`;
+      }).join("");
+    }
     onValue(ref(db, "presence"), (snap) => {
       const list = [];
       snap.forEach((c) => { const v = c.val(); if (v) list.push({ id: c.key, ...v }); });
-      const el = $("connList");
-      if (!list.length) { el.innerHTML = `<div class="status err"><span class="dot"></span>Nadie conectado</div>`; return; }
-      el.innerHTML = list.map((p) => {
-        const me = p.id === INSTANCE ? " (este)" : "";
-        return `<div class="status ${p.irc ? "live" : "err"}"><span class="dot"></span>${esc(p.where)}${me} · ${p.irc ? "chat conectado" : "chat desconectado"}</div>`;
-      }).join("");
+      const rank = (p) => (p.kind === "panel" ? 0 : 1);
+      presList = list.sort((a, b) => rank(a) - rank(b) || num(a.since) - num(b.since));
+      renderPresence();
     });
+    setInterval(renderPresence, 30000);
 
     /* ---------------- follows: autorización ---------------- */
     const REDIRECT = location.origin + location.pathname;
