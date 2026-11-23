@@ -1,0 +1,2193 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timer grayinner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Russo+One&family=Bebas+Neue&family=Black+Ops+One&family=Rajdhani:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #2F7BFF;
+    --accent-2: #00C2FF;
+    --bg: #04060C;
+    --panel: #0A1120;
+    --panel-2: #0F1A30;
+    --border: #1B2A4A;
+    --text: #E6EEFF;
+    --muted: #7083AA;
+    --ok: #2BD67B;
+    --danger: #FF4D6D;
+    --warn: #FF9F2E;
+    --x2: #3D8BFF;
+    --boost: #FF2B3A;
+    --mono: "Consolas", "SFMono-Regular", "DejaVu Sans Mono", monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); font-family: var(--mono); -webkit-font-smoothing: antialiased; }
+
+  /* ============ TIMER (preview y overlay) ============ */
+  .stage { position: relative; overflow: hidden; line-height: 0; }
+  .tmr, .tmr0, .tmr2 {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    white-space: nowrap; line-height: 1;
+    font-variant-numeric: tabular-nums; z-index: 5;
+  }
+  .tmr > span, .tmr0 > span, .tmr2 > span { display: block; }
+  .t-back { position: absolute; inset: 0; }
+  .t-front { position: relative; }
+  .tmr0, .tmr2 { display: none; }
+  .tmr0.show, .tmr2.show { display: block; }
+  .tmr0 .upl { display: inline-block; vertical-align: middle; margin-right: 0.5em; letter-spacing: 0.06em; }
+  .tmr0 .upt, .tmr2 .x2t { display: inline-block; vertical-align: middle; }
+  .tmr2 .x2l { display: inline-block; vertical-align: middle; margin-right: 0.45em; }
+  .ghost-el { opacity: .35; }
+
+  /* ============ OVERLAY (?display) ============ */
+  html.display, body.display { background: transparent !important; }
+  body.display { height: 100vh; overflow: hidden; }
+  body.display .stage { width: 100vw; height: 100vh; }
+
+  /* ============ LOGIN ============ */
+  #login { display: none; min-height: 100vh; align-items: center; justify-content: center; padding: 24px; }
+  #login.show { display: flex; }
+  .login-card { width: 100%; max-width: 400px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 14px; }
+  .login-card h1 { font-size: 18px; letter-spacing: .3em; color: var(--accent); }
+  .login-card p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .login-err { font-size: 12px; color: var(--danger); min-height: 16px; }
+  .uid-box { font-size: 13px; color: var(--accent-2); background: var(--bg); border: 1px dashed var(--border); border-radius: 9px; padding: 10px 12px; overflow-wrap: anywhere; user-select: all; }
+
+  /* ============ PANEL ============ */
+  body:not(.display) { font-size: 14px; }
+  #panel { max-width: 1240px; margin: 0 auto; padding: 28px 24px 60px; }
+  #panel:not(.show) { display: none; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 24px; align-items: start; }
+  .col-main { min-width: 0; }
+  .col-side { position: sticky; top: 20px; }
+  @media (max-width: 1000px) {
+    .layout { grid-template-columns: 1fr; }
+    .col-side { position: static; }
+  }
+
+  .brand { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; gap: 10px; flex-wrap: wrap; }
+  .brand h1 { font-size: 20px; letter-spacing: 0.3em; color: var(--accent); }
+  .brand .who { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); letter-spacing: .08em; }
+  .brand .who b { color: var(--text); font-weight: 400; }
+
+  .preview {
+    background: repeating-conic-gradient(#0c1326 0% 25%, #080d1a 0% 50%) 50% / 20px 20px;
+    border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+  }
+  .preview .stage { width: 100%; aspect-ratio: 16 / 9; }
+  .preview .tmr, .preview .tmr0, .preview .tmr2 { cursor: grab; touch-action: none; user-select: none; }
+  .preview .tmr:active, .preview .tmr0:active, .preview .tmr2:active { cursor: grabbing; }
+  .preview .sel { outline: 2px dashed rgba(0,194,255,.75); outline-offset: 0.08em; }
+  .preview-hint { font-size: 12px; color: var(--muted); text-align: center; margin-top: 8px; }
+
+  /* play / pausa grandes */
+  .transport { display: flex; justify-content: center; align-items: center; gap: 28px; margin: 22px 0 8px; }
+  .tbtn {
+    width: 100px; height: 100px; border-radius: 50%; padding: 0;
+    display: grid; place-items: center;
+    background: var(--panel-2); border: 2px solid var(--border); color: var(--muted);
+    transition: background .15s, border-color .15s, color .15s, box-shadow .15s;
+  }
+  .tbtn svg { width: 42px; height: 42px; fill: currentColor; }
+  .tbtn:hover { color: var(--text); border-color: var(--accent); }
+  .tbtn.play.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 28px rgba(47,123,255,.55); }
+  .tbtn.pause.active { border-color: var(--accent-2); color: var(--accent-2); }
+  .run-status { text-align: center; margin-bottom: 24px; }
+
+  .status { font-size: 12px; letter-spacing: 0.16em; color: var(--muted); text-transform: uppercase; display: inline-flex; align-items: center; gap: 9px; }
+  .status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+  .status.live { color: var(--text); }
+  .status.live .dot { background: var(--accent-2); box-shadow: 0 0 8px var(--accent-2); }
+  .status.err .dot { background: var(--danger); }
+  .status.ended { color: var(--warn); }
+  .status.ended .dot { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+
+  /* tarjetas */
+  .block { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+  .title {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 14px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text);
+  }
+  .title::before { content: ""; width: 4px; height: 16px; border-radius: 2px; background: var(--accent); flex: none; }
+  .title small { font-size: 11px; font-weight: 400; letter-spacing: 0.06em; text-transform: none; color: var(--muted); }
+  .block > .title { margin-bottom: 16px; }
+  .block-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+
+  details.block summary { cursor: pointer; list-style: none; justify-content: space-between; }
+  details.block summary::-webkit-details-marker { display: none; }
+  details.block summary .chev { margin-left: auto; color: var(--muted); font-size: 18px; line-height: 1; transition: transform .15s; }
+  details.block[open] summary .chev { transform: rotate(90deg); }
+  details.block[open] summary { margin-bottom: 18px; }
+  details.block:not([open]) { padding-top: 18px; padding-bottom: 18px; }
+  details.block summary:hover .chev { color: var(--accent-2); }
+
+  button {
+    font-family: var(--mono); cursor: pointer;
+    border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+    border-radius: 9px; padding: 11px 16px; font-size: 13px; letter-spacing: 0.06em; font-weight: 700;
+  }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: #4a8dff; }
+  button.ghost { background: transparent; }
+  button.danger { color: var(--danger); }
+  button.danger:hover { border-color: var(--danger); }
+  button.small { padding: 7px 11px; font-size: 11px; }
+
+  input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="datetime-local"], select {
+    font-family: var(--mono); background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 9px; padding: 11px 12px; font-size: 14px; width: 100%; min-width: 0;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  input[type="color"] { width: 100%; height: 42px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); padding: 3px; cursor: pointer; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  input.nospin::-webkit-outer-spin-button, input.nospin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input.nospin { -moz-appearance: textfield; }
+
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .row > * { flex: 1; }
+  .row > .fit { flex: 0 0 auto; }
+  .grid3 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  @media (max-width: 700px) { .grid3 { grid-template-columns: 1fr 1fr; } }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 11px; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
+  .check { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text); cursor: pointer; }
+  .check input { accent-color: var(--accent); width: 16px; height: 16px; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+  .hint { font-size: 12px; color: var(--muted); line-height: 1.65; margin-top: 12px; }
+  .flash { font-size: 12px; color: var(--accent-2); min-height: 16px; margin-top: 10px; letter-spacing: 0.04em; }
+  .sublabel { font-size: 11px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; }
+
+  /* agregar o quitar tiempo */
+  .adj { display: flex; flex-direction: column; gap: 10px; }
+  .adj-row {
+    display: grid; grid-template-columns: 150px minmax(90px, 1fr) auto auto; gap: 10px; align-items: center;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 11px; padding: 10px 10px 10px 16px;
+  }
+  .adj-row .unit { font-size: 13px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text); }
+  .adj-row .unit small { display: block; font-size: 11px; font-weight: 400; letter-spacing: .02em; text-transform: none; color: var(--accent-2); margin-top: 3px; min-height: 13px; }
+  .adj-row input { text-align: center; font-size: 20px; font-weight: 700; padding: 10px 6px; background: var(--panel); }
+  .adj-row button { min-width: 112px; padding: 13px 14px; }
+  .adj-row button.minus { color: var(--danger); background: transparent; }
+  .adj-row button.minus:hover { border-color: var(--danger); background: rgba(255,77,109,.08); }
+  @media (max-width: 560px) {
+    .adj-row { grid-template-columns: 1fr 1fr; padding: 12px; }
+    .adj-row .unit { grid-column: 1 / -1; }
+    .adj-row input { grid-column: 1 / -1; }
+    .adj-row button { min-width: 0; }
+  }
+
+  .quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  @media (max-width: 700px) { .quick { grid-template-columns: 1fr 1fr; } }
+  .qbtn {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left;
+    padding: 14px 14px; border-radius: 11px; background: var(--panel-2);
+  }
+  .qbtn .qn { font-size: 13px; letter-spacing: .04em; color: var(--text); }
+  .qbtn .qv { font-size: 16px; color: var(--accent-2); letter-spacing: .02em; }
+  .qbtn[style*="--qc"] { border-color: var(--qc); border-left-width: 4px;
+    background: color-mix(in srgb, var(--qc) 18%, var(--panel)); }
+  .qbtn[style*="--qc"]:hover { background: color-mix(in srgb, var(--qc) 32%, var(--panel)); border-color: var(--qc); }
+  .qbtn[style*="--qc"] .qv { color: color-mix(in srgb, var(--qc) 55%, #ffffff); }
+
+  /* tiempo exacto HH : MM : SS */
+  .hms-row { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
+  .hms { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 260px; }
+  .hms .cell { flex: 1; display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+  .hms .cell label { font-size: 10px; letter-spacing: .16em; color: var(--muted); text-align: center; text-transform: uppercase; }
+  .hms input { text-align: center; font-size: 26px; font-weight: 700; padding: 12px 4px; font-variant-numeric: tabular-nums; }
+  .hms .sep { font-size: 28px; font-weight: 700; color: var(--muted); padding-top: 18px; }
+  .hms-row > button { align-self: flex-end; padding: 18px 22px; }
+
+  /* historial */
+  .hist-card { display: flex; flex-direction: column; max-height: calc(100vh - 40px); margin-bottom: 0; }
+  @media (max-width: 1000px) { .hist-card { max-height: none; } }
+  .legend { display: flex; gap: 12px; font-size: 11px; color: var(--muted); letter-spacing: .06em; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .hist { flex: 1; min-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px; }
+  @media (max-width: 1000px) { .hist { max-height: 420px; } }
+  .hist:empty::before { content: "Todavía no hay movimientos."; font-size: 13px; color: var(--muted); padding: 8px 2px; }
+  .hrow {
+    display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
+    padding: 10px 12px; border-radius: 8px; background: var(--bg);
+    border-left: 3px solid var(--muted);
+  }
+  .hrow .hx { font-size: 13px; color: var(--text); min-width: 0; overflow-wrap: anywhere; line-height: 1.4; }
+  .hrow .hd { font-size: 14px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right; }
+  .hrow .ht { grid-column: 1 / -1; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .hrow .ht em { font-style: normal; margin-left: 8px; }
+  .hrow.auto { border-left-color: var(--ok); }
+  .hrow.auto .hd { color: var(--ok); }
+  .hrow.manual { border-left-color: var(--danger); }
+  .hrow.manual .hd { color: var(--danger); }
+  .hrow.skip { border-left-color: var(--warn); background: rgba(255,159,46,.06); }
+  .hrow.skip .hd { color: var(--warn); }
+  .hrow.skip .hx { color: #FFD7A8; }
+  .hrow.x2 { border-left-color: var(--x2); background: rgba(61,139,255,.08); }
+  .hrow.x2 .hd { color: var(--x2); }
+  .hrow .hn { grid-column: 1 / -1; font-size: 12px; color: var(--warn); line-height: 1.4; }
+  .hist-foot { display: flex; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .hist-foot input { flex: 1; }
+
+  /* precios */
+  #pricesBlock { border-color: rgba(47,123,255,.55); background: linear-gradient(180deg, #0D1A35 0%, var(--panel) 70%); }
+  #pricesBlock > .title::before { background: var(--accent-2); box-shadow: 0 0 10px var(--accent-2); }
+  .price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 700px) { .price-grid { grid-template-columns: 1fr; } }
+  .pcard { background: #12234A; border: 1px solid #2E4C8C; border-radius: 11px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .pnote { font-size: 11px; color: var(--muted); }
+  .pcard-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .pcard-head h3 { font-size: 14px; letter-spacing: .14em; color: #5FD8FF; text-transform: uppercase; }
+  .pitem { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; }
+  .pitem .pl { font-size: 13px; color: var(--text); }
+  .pitem .pl small { display: block; font-size: 11px; color: #91A6CF; margin-top: 3px; line-height: 1.4; }
+  .pin { display: flex; align-items: center; gap: 6px; }
+  .pin input { width: 92px; text-align: center; font-size: 17px; font-weight: 700; padding: 9px 6px; background: #050B1A; border-color: #3D66B8; color: #fff; }
+  .pin input:focus { border-color: var(--accent-2); box-shadow: 0 0 0 3px rgba(0,194,255,.18); }
+  .pin span { font-size: 12px; color: var(--muted); min-width: 40px; }
+  .pitem .conv { grid-column: 2; justify-self: end; font-size: 11px; color: var(--accent-2); min-height: 13px; }
+  .examples {
+    margin-top: 16px; background: var(--bg); border: 1px dashed var(--border); border-radius: 11px;
+    padding: 14px 16px; font-size: 13px; line-height: 2; color: var(--muted);
+  }
+  .examples b { color: var(--accent-2); font-weight: 700; }
+
+  /* tiempo total */
+  .up-row { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+  .up-clock { font-size: 40px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; min-width: 210px; letter-spacing: .04em; }
+  .up-start { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 8px; }
+  .up-start .up-lbl { font-size: 11px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
+  .up-start .up-val { font-size: 15px; color: var(--text); }
+  #btnUpShow.on { border-color: var(--accent-2); color: var(--accent-2); background: rgba(0,194,255,.1); }
+
+  /* multiplicador */
+  .boost-block { border-color: rgba(255,43,58,.55); background: linear-gradient(180deg, #230b12 0%, var(--panel) 75%); }
+  .boost-block > .block-head .title::before { background: var(--boost); box-shadow: 0 0 10px var(--boost); }
+  .boost-top { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .boost-clock { font-size: 40px; font-weight: 700; color: var(--boost); font-variant-numeric: tabular-nums; min-width: 150px; letter-spacing: .04em; }
+  .boost-ctrl { flex: 1; min-width: 280px; }
+  .boost-ctrl .pin input { width: 80px; }
+  .boost-go { background: var(--boost); border-color: var(--boost); color: #fff; }
+  .boost-go:hover { background: #ff5361; }
+  #btnBoostShow.on { border-color: var(--boost); color: #ffb3b9; background: rgba(255,43,58,.12); }
+  .factor-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .fbtn { min-width: 64px; font-size: 16px; padding: 10px 14px; }
+  .fbtn.on { background: var(--boost); border-color: var(--boost); color: #fff; }
+  .factor-custom { display: flex; align-items: center; gap: 6px; margin-left: 6px; }
+  .factor-custom span { font-size: 18px; font-weight: 700; color: var(--boost); }
+  .factor-custom input { width: 86px; text-align: center; font-size: 17px; font-weight: 700; padding: 9px 6px; }
+  .factor-now { font-size: 12px; color: var(--muted); margin-left: auto; }
+  .factor-now b { color: #ffb3b9; font-size: 14px; }
+  .boost-cats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  @media (max-width: 700px) { .boost-cats { grid-template-columns: 1fr 1fr; } }
+  .rcheck { display: flex; align-items: center; gap: 9px; padding: 10px 12px; border-radius: 9px; cursor: pointer;
+    background: var(--bg); border: 1px solid #4a1d26; font-size: 13px; color: var(--text); }
+  .rcheck input { accent-color: var(--boost); width: 17px; height: 17px; }
+  .rcheck:has(input:checked) { border-color: var(--boost); background: rgba(255,43,58,.12); }
+  #boostStatus.live { color: var(--boost); }
+  #boostStatus.live .dot { background: var(--boost); box-shadow: 0 0 8px var(--boost); }
+
+  /* estilo de los números */
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tabs button { flex: 1; min-width: 140px; }
+  .tabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .sliders { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+  .srow { display: grid; grid-template-columns: 190px 1fr 170px; gap: 14px; align-items: center;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px 8px 14px; }
+  .srow > label { font-size: 12px; letter-spacing: .08em; color: var(--text); text-transform: uppercase; }
+  .snum { display: flex; align-items: center; gap: 4px; }
+  .snum button { padding: 7px 0; width: 34px; font-size: 16px; line-height: 1; }
+  .snum input { text-align: center; font-weight: 700; font-size: 15px; padding: 7px 4px; }
+  .snum span { font-size: 11px; color: var(--muted); min-width: 16px; }
+  @media (max-width: 640px) { .srow { grid-template-columns: 1fr; } }
+  .extra { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; margin-top: 12px; }
+
+  /* indicador de mostrar / oculto */
+  .vis { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    letter-spacing: .14em; text-transform: uppercase; border: 1px solid var(--border); color: var(--muted); background: var(--bg); white-space: nowrap; }
+  .vis::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .vis.on { color: #CFFFE3; border-color: var(--ok); background: rgba(43,214,123,.14); }
+  .vis.on::before { background: var(--ok); box-shadow: 0 0 8px var(--ok); animation: visPulse 1.2s ease-in-out infinite; }
+  @keyframes visPulse { 50% { opacity: .35; } }
+  .head-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  /* ruleta */
+  .rstage { position: relative; width: 100%; aspect-ratio: 16 / 9; line-height: 0; transition: opacity .35s; }
+  .rstage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  body.display .rstage { width: 100vw; height: 100vh; aspect-ratio: auto; }
+  body.display .rstage.off { opacity: 0; }
+  .roul-block { border-color: rgba(176,107,255,.5); background: linear-gradient(180deg, #170f2b 0%, var(--panel) 70%); }
+  .roul-block > .block-head .title::before { background: #B06BFF; box-shadow: 0 0 10px #B06BFF; }
+  .roul-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  @media (max-width: 800px) { .roul-grid { grid-template-columns: 1fr; } }
+  .rprev { position: relative; border: 2px solid var(--border); border-radius: 14px; overflow: hidden;
+    background: repeating-conic-gradient(#0c1326 0% 25%, #080d1a 0% 50%) 50% / 20px 20px; transition: border-color .2s, box-shadow .2s; }
+  .rprev.live { border-color: var(--ok); box-shadow: 0 0 0 3px rgba(43,214,123,.16), 0 0 26px rgba(43,214,123,.22); }
+  .rprev:not(.live) canvas { opacity: .45; filter: grayscale(.7); }
+  .rprev .rtag { position: relative; margin: 10px 10px 0; line-height: normal; z-index: 2; }
+  .rwin-panel { margin-top: 12px; min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px;
+    background: var(--bg); border: 1px dashed var(--border); font-size: 14px; color: var(--muted); }
+  .rwin-panel b { color: #E7D4FF; font-size: 18px; }
+  .roul-form { display: flex; flex-direction: column; gap: 12px; }
+  .roul-form textarea { font-family: var(--mono); background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 9px; padding: 11px 12px; font-size: 15px; width: 100%; min-height: 170px; resize: vertical; line-height: 1.6; }
+  .roul-form textarea:focus { outline: none; border-color: #B06BFF; }
+  .roul-form textarea:disabled { opacity: .55; }
+  .rcolors { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .spin-btn { background: #8A3DFF; border-color: #8A3DFF; color: #fff; font-size: 18px; padding: 16px; letter-spacing: .2em; }
+  .spin-btn:hover { background: #9d5cff; }
+  .hrow.roul { border-left-color: #B06BFF; background: rgba(176,107,255,.08); }
+  .hrow.roul .hd { color: #C99BFF; }
+
+  .conn-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+
+  .footer { display: flex; justify-content: center; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 20px; letter-spacing: 0.08em; }
+  .footer a.chip { display: inline-block; padding: 6px 12px; border: 1px solid var(--accent-2); border-radius: 6px; color: var(--accent-2);
+    text-decoration: none; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; background: rgba(0,194,255,.08); }
+  .footer a.chip:hover { background: rgba(0,194,255,.18); }
+</style>
+</head>
+<body>
+
+<!--LOGIN-START-->
+<div id="login">
+  <div class="login-card">
+    <h1>TIMER</h1>
+    <div id="loginForm" style="display:flex;flex-direction:column;gap:14px;">
+      <p>Entra con la cuenta que te dieron para el panel.</p>
+      <input type="email" id="loginEmail" placeholder="Correo" autocomplete="username">
+      <input type="password" id="loginPass" placeholder="Contraseña" autocomplete="current-password">
+      <button class="primary" id="btnLogin">ENTRAR</button>
+      <div class="login-err" id="loginErr"></div>
+    </div>
+    <div id="noAccess" style="display:none;flex-direction:column;gap:14px;">
+      <p>Tu cuenta entró, pero todavía no tiene permiso para usar el panel. Pásale este código al dueño del timer para que lo agregue:</p>
+      <div class="uid-box" id="noAccessUid"></div>
+      <button class="ghost" id="btnLogout2">Cerrar sesión</button>
+    </div>
+  </div>
+</div>
+<!--LOGIN-END-->
+
+<!--PANEL-START-->
+<div id="panel">
+<div class="layout">
+<div class="col-main">
+
+  <div class="brand">
+    <h1>TIMER</h1>
+    <div class="who"><span>grayinner · <b id="whoEmail"></b></span><button class="ghost small" id="btnLogout">Salir</button></div>
+  </div>
+
+  <div class="preview">
+<!--STAGE-START-->
+    <div class="stage" id="stage">
+      <div class="tmr0" id="tmr0"><span class="t-back"><span class="upl">TIEMPO TOTAL</span><span class="upt">00:00:00</span></span><span class="t-front"><span class="upl">TIEMPO TOTAL</span><span class="upt">00:00:00</span></span></div>
+      <div class="tmr" id="tmr"><span class="t-back">00:00:00</span><span class="t-front">00:00:00</span></div>
+      <div class="tmr2" id="tmr2"><span class="t-back"><span class="x2l">x2</span><span class="x2t">00:00</span></span><span class="t-front"><span class="x2l">x2</span><span class="x2t">00:00</span></span></div>
+    </div>
+<!--STAGE-END-->
+  </div>
+  <div class="preview-hint">Arrastra cualquier número para moverlo. Lo que sale transparente está oculto en el overlay.</div>
+
+  <!-- PLAY / PAUSA -->
+  <div class="transport">
+    <button class="tbtn play" id="btnPlay" title="Play" aria-label="Play">
+      <svg viewBox="0 0 24 24"><path d="M7 4.2v15.6c0 .8.9 1.3 1.6.9l12-7.8c.6-.4.6-1.4 0-1.8l-12-7.8C7.9 2.9 7 3.4 7 4.2z"/></svg>
+    </button>
+    <button class="tbtn pause active" id="btnPause" title="Pausa" aria-label="Pausa">
+      <svg viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1.5"/><rect x="14" y="4" width="5" height="16" rx="1.5"/></svg>
+    </button>
+  </div>
+  <div class="run-status"><div class="status" id="runStatus"><span class="dot"></span><span id="runText">PAUSADO</span></div></div>
+
+  <!-- PON EL TIEMPO EXACTO -->
+  <div class="block">
+    <div class="title">Pon el tiempo exacto</div>
+    <div class="hms-row">
+      <div class="hms">
+        <div class="cell"><label for="ovH">Horas</label><input type="number" class="nospin" id="ovH" min="0" step="1" placeholder="00"></div>
+        <span class="sep">:</span>
+        <div class="cell"><label for="ovM">Minutos</label><input type="number" class="nospin" id="ovM" min="0" max="59" step="1" placeholder="00"></div>
+        <span class="sep">:</span>
+        <div class="cell"><label for="ovS">Segundos</label><input type="number" class="nospin" id="ovS" min="0" max="59" step="1" placeholder="00"></div>
+      </div>
+      <button class="primary" id="btnSetExact">PONER TIEMPO</button>
+    </div>
+  </div>
+
+  <!-- AGREGAR O QUITAR TIEMPO -->
+  <div class="block">
+    <div class="title">Agregar o quitar tiempo</div>
+    <div class="adj">
+      <div class="adj-row">
+        <div class="unit">Horas<small id="cvH"></small></div>
+        <input type="number" class="nospin" id="adjH" min="0" step="1" value="1">
+        <button class="minus" data-adj="3600" data-sign="-1">- QUITAR</button>
+        <button class="primary" data-adj="3600" data-sign="1">+ AGREGAR</button>
+      </div>
+      <div class="adj-row">
+        <div class="unit">Minutos<small id="cvM"></small></div>
+        <input type="number" class="nospin" id="adjM" min="0" step="1" value="5">
+        <button class="minus" data-adj="60" data-sign="-1">- QUITAR</button>
+        <button class="primary" data-adj="60" data-sign="1">+ AGREGAR</button>
+      </div>
+      <div class="adj-row">
+        <div class="unit">Segundos<small id="cvS"></small></div>
+        <input type="number" class="nospin" id="adjS" min="0" step="1" value="30">
+        <button class="minus" data-adj="1" data-sign="-1">- QUITAR</button>
+        <button class="primary" data-adj="1" data-sign="1">+ AGREGAR</button>
+      </div>
+    </div>
+
+    <hr>
+    <div class="sublabel">Sumar a mano un evento que no se contó</div>
+    <div class="quick">
+      <button class="qbtn" data-quick="t1" style="--qc:#2029ff"><span class="qn">Sub Tier 1 / Prime</span><span class="qv" id="qT1v"></span></button>
+      <button class="qbtn" data-quick="t2" style="--qc:#5860ff"><span class="qn">Sub Tier 2</span><span class="qv" id="qT2v"></span></button>
+      <button class="qbtn" data-quick="t3" style="--qc:#a7aaff"><span class="qn">Sub Tier 3</span><span class="qv" id="qT3v"></span></button>
+      <button class="qbtn" data-quick="follow" style="--qc:#ea83ff"><span class="qn">Follow</span><span class="qv" id="qFollowv"></span></button>
+      <button class="qbtn" data-quick="donation" style="--qc:#529c4a"><span class="qn">Donación 1 USD</span><span class="qv" id="qDonUsdv"></span></button>
+      <button class="qbtn" data-quick="donationMxn" style="--qc:#79a574"><span class="qn">Donación 20 MXN</span><span class="qv" id="qDonMxnv"></span></button>
+    </div>
+  </div>
+
+  <!-- MULTIPLICADOR -->
+  <div class="block boost-block" id="boostBlock">
+    <div class="block-head">
+      <div class="title">Multiplicador</div>
+      <div class="head-right">
+        <div class="status" id="boostStatus"><span class="dot"></span><span id="boostText">INACTIVO</span></div>
+        <span class="vis" id="multVis">OCULTO</span>
+      </div>
+    </div>
+    <div class="factor-row">
+      <button class="fbtn" data-factor="2">x2</button>
+      <button class="fbtn" data-factor="3">x3</button>
+      <button class="fbtn" data-factor="4">x4</button>
+      <div class="factor-custom">
+        <span>x</span>
+        <input type="number" class="nospin" id="factorInput" min="1" max="20" step="0.1" value="1.5">
+        <button class="fit" id="btnFactorSet">USAR</button>
+      </div>
+      <div class="factor-now">Ahora: <b id="factorNow">x2</b></div>
+    </div>
+    <hr>
+    <div class="boost-top">
+      <div class="boost-clock" id="boostClock">00:00</div>
+      <div class="boost-ctrl">
+        <div class="row">
+          <div class="pin"><input type="number" class="nospin" id="boostMin" min="1" step="1" value="10"><span>min</span></div>
+          <button class="fit" id="btnBoostSet">PONER</button>
+          <button class="fit boost-go" id="btnBoostPlay">PLAY</button>
+          <button class="fit" id="btnBoostPause">PAUSA</button>
+          <button class="fit ghost" id="btnBoostShow">MOSTRAR EN OVERLAY</button>
+        </div>
+      </div>
+    </div>
+    <div class="sublabel" style="margin-top:16px;">Qué se multiplica</div>
+    <div class="boost-cats">
+      <label class="rcheck"><input type="checkbox" data-bcat="t1"> Sub Tier 1 / Prime</label>
+      <label class="rcheck"><input type="checkbox" data-bcat="t2"> Sub Tier 2</label>
+      <label class="rcheck"><input type="checkbox" data-bcat="t3"> Sub Tier 3</label>
+      <label class="rcheck"><input type="checkbox" data-bcat="bits"> Bits</label>
+      <label class="rcheck"><input type="checkbox" data-bcat="follow"> Follows</label>
+      <label class="rcheck"><input type="checkbox" data-bcat="raid"> Raids</label>
+      <label class="rcheck"><input type="checkbox" data-bcat="donation"> Donación USD</label>
+      <label class="rcheck"><input type="checkbox" data-bcat="donationMxn"> Donación MXN</label>
+    </div>
+  </div>
+
+  <!-- TIEMPO TOTAL -->
+  <div class="block up-block">
+    <div class="block-head">
+      <div class="title">Tiempo total del directo</div>
+      <div class="head-right">
+        <span class="vis" id="upVis">OCULTO</span>
+        <button class="fit ghost" id="btnUpShow">MOSTRAR EN OVERLAY</button>
+      </div>
+    </div>
+    <div class="up-row">
+      <div class="up-clock" id="upClock">00:00:00</div>
+      <div class="up-start">
+        <span class="up-lbl">Inicio del directo</span>
+        <span class="up-val" id="upStartVal">Sin definir</span>
+        <div class="row">
+          <input type="datetime-local" id="upStartInput" step="1">
+          <button class="fit" id="btnUpSave">GUARDAR INICIO</button>
+          <button class="fit primary" id="btnUpNow">EMPEZAR AHORA</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RULETA -->
+  <div class="block roul-block" id="roulBlock">
+    <div class="block-head">
+      <div class="title">Ruleta <small>overlay aparte</small></div>
+      <div class="head-right">
+        <span class="vis" id="rVis">OCULTA</span>
+        <button class="fit" id="btnRShow">MOSTRAR EN OVERLAY</button>
+      </div>
+    </div>
+    <div class="roul-grid">
+      <div>
+        <div class="rprev" id="rPrev">
+          <span class="vis rtag" id="rVisTag">OCULTA</span>
+<!--RSTAGE-START-->
+          <div class="rstage off" id="rstage"><canvas id="rcanvas"></canvas></div>
+<!--RSTAGE-END-->
+        </div>
+        <div class="rwin-panel" id="rWin">Todavía no se ha girado.</div>
+      </div>
+      <div class="roul-form">
+        <div class="field"><label>Texto de arriba</label><input type="text" id="rTitle" maxlength="60" placeholder="Ej. RULETA DEL TIEMPO"></div>
+        <div class="field"><label>Opciones <span id="rCount"></span> · una por línea</label>
+          <textarea id="rOpts" spellcheck="false" placeholder="+10 min&#10;+30 min&#10;x2 por 10 min"></textarea></div>
+        <div class="rcolors">
+          <div class="field"><label>Color 1</label><input type="color" id="rColorA"></div>
+          <div class="field"><label>Color 2</label><input type="color" id="rColorB"></div>
+          <div class="field"><label>Color texto</label><input type="color" id="rColorT"></div>
+        </div>
+        <button class="spin-btn" id="btnSpin">GIRAR</button>
+        <button class="ghost small" id="btnRClear">Quitar ganador de pantalla</button>
+        <div class="flash" id="rFlash"></div>
+      </div>
+    </div>
+    <p class="hint">Los cambios se guardan solos. Cada giro es al azar (generador aleatorio del navegador). Todas las opciones tienen la misma probabilidad. La ruleta no suma nada sola: lo que salga lo agregas tú a mano.</p>
+  </div>
+
+  <!-- ESTILO -->
+  <details class="block" open>
+    <summary class="title">Estilo de los números <small>colores, tamaño y posición de cada uno</small><span class="chev">&rsaquo;</span></summary>
+    <div class="tabs" id="stTabs">
+      <button data-tab="main" class="on">Timer principal</button>
+      <button data-tab="up">Tiempo total</button>
+      <button data-tab="mult">Multiplicador</button>
+    </div>
+    <div class="grid3">
+      <div class="field"><label>Fuente</label>
+        <select id="stFont">
+          <option value="orbitron">Orbitron</option>
+          <option value="russo">Russo One</option>
+          <option value="bebas">Bebas Neue</option>
+          <option value="blackops">Black Ops One</option>
+          <option value="rajdhani">Rajdhani</option>
+          <option value="impact">Impact</option>
+          <option value="mono">Monoespaciada</option>
+        </select>
+      </div>
+      <div class="field"><label>Color número</label><input type="color" id="stColor"></div>
+      <div class="field"><label>Color borde</label><input type="color" id="stStroke"></div>
+      <div class="field"><label>Color brillo</label><input type="color" id="stGlow"></div>
+    </div>
+    <div class="sliders" id="sliders"></div>
+    <div class="extra" id="extraUp">
+      <div class="field"><label>Texto de la etiqueta</label><input type="text" id="stLabel" maxlength="40"></div>
+      <label class="check"><input type="checkbox" id="stShowLabel"> Mostrar etiqueta</label>
+    </div>
+    <div class="row" style="margin-top:16px;">
+      <button class="fit ghost" id="btnCenterX">Centrar horizontal</button>
+      <button class="fit ghost" id="btnStyleReset">Restablecer este</button>
+    </div>
+    <div class="flash" id="styleFlash"></div>
+    <p class="hint">Los cambios se ven en vivo en el overlay de OBS.</p>
+  </details>
+
+  <!-- PRECIOS -->
+  <div class="block" id="pricesBlock">
+    <div class="title">Precios <small>cuánto tiempo suma cada evento, en segundos</small></div>
+    <div class="price-grid">
+
+      <div class="pcard">
+        <div class="pcard-head"><h3>Subs</h3></div>
+        <div class="pitem"><div class="pl">Tier 1 / Prime<small>también cada regalado de T1</small></div>
+          <div class="pin"><input type="number" class="sec nospin" data-key="t1" min="0" step="1"><span>seg</span></div><span class="conv" data-conv="t1"></span></div>
+        <div class="pitem"><div class="pl">Tier 2</div>
+          <div class="pin"><input type="number" class="sec nospin" data-key="t2" min="0" step="1"><span>seg</span></div><span class="conv" data-conv="t2"></span></div>
+        <div class="pitem"><div class="pl">Tier 3</div>
+          <div class="pin"><input type="number" class="sec nospin" data-key="t3" min="0" step="1"><span>seg</span></div><span class="conv" data-conv="t3"></span></div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-head"><h3>Raids</h3><label class="check"><input type="checkbox" id="cfgRaidOn"> Activado</label></div>
+        <div class="pitem"><div class="pl">Tiempo fijo<small>lo que suma cada raid</small></div>
+          <div class="pin"><input type="number" class="sec nospin" data-key="raidBase" min="0" step="1"><span>seg</span></div><span class="conv" data-conv="raidBase"></span></div>
+        <div class="pitem"><div class="pl">Extra por viewer<small>0 = no da extra</small></div>
+          <div class="pin"><input type="number" class="nospin" id="cfgRaidPer" min="0" step="0.5"><span>seg</span></div></div>
+        <div class="pitem"><div class="pl">Mínimo de viewers<small>raids más chicos no suman</small></div>
+          <div class="pin"><input type="number" class="nospin" id="cfgRaidMin" min="0" step="1"><span>viewers</span></div></div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-head"><h3>Bits</h3></div>
+        <div class="pitem"><div class="pl">Cada 100 bits<small>proporcional: 50 bits suman la mitad</small></div>
+          <div class="pin"><input type="number" class="sec nospin" data-key="bitsPer100" min="0" step="1"><span>seg</span></div><span class="conv" data-conv="bitsPer100"></span></div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-head"><h3>Donaciones PayPal</h3><span class="pnote">se suman con su botón</span></div>
+        <div class="pitem"><div class="pl">Cada 1 USD<small>dólares</small></div>
+          <div class="pin"><input type="number" class="sec nospin" data-key="donation" min="0" step="1"><span>seg</span></div><span class="conv" data-conv="donation"></span></div>
+        <div class="pitem"><div class="pl">Cada 20 MXN<small>pesos mexicanos</small></div>
+          <div class="pin"><input type="number" class="sec nospin" data-key="donationMxn" min="0" step="1"><span>seg</span></div><span class="conv" data-conv="donationMxn"></span></div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-head"><h3>Follows</h3><label class="check"><input type="checkbox" id="cfgFollowOn"> Activado</label></div>
+        <div class="pitem"><div class="pl">Cada follow<small>solo el primero de cada persona</small></div>
+          <div class="pin"><input type="number" class="sec nospin" data-key="follow" min="0" step="1"><span>seg</span></div><span class="conv" data-conv="follow"></span></div>
+      </div>
+
+    </div>
+    <div class="examples" id="priceExamples"></div>
+    <div class="row" style="margin-top:16px;">
+      <button class="primary" id="btnSavePrices">GUARDAR PRECIOS</button>
+      <button class="fit ghost" id="btnDiscardPrices">Descartar</button>
+    </div>
+    <div class="flash" id="priceFlash"></div>
+  </div>
+
+  <!-- CONEXIÓN TWITCH -->
+  <details class="block">
+    <summary class="title">Conexión Twitch <small id="chanLabel"></small><span class="chev">&rsaquo;</span></summary>
+    <div class="sublabel">Quién está contando eventos ahora</div>
+    <div class="conn-list" id="connList"></div>
+    <hr>
+    <div class="sublabel">Follows</div>
+    <div class="status" id="folStatus"><span class="dot"></span><span id="folText">SIN CONFIGURAR</span></div>
+    <div class="row" style="margin-top:12px;">
+      <input type="text" id="clientId" placeholder="Client ID de tu app de Twitch">
+      <button class="fit primary" id="btnAuth">AUTORIZAR</button>
+      <button class="fit ghost" id="btnFolOff">Quitar</button>
+    </div>
+    <p class="hint">Autoriza con una cuenta que sea mod del canal (o con la del propio canal). Subs, bits y raids no necesitan login.</p>
+  </details>
+
+  <div class="footer">
+    <span>Overlay para OBS:</span>
+    <a id="displayLink" class="chip" href="?display" target="_blank">timer</a>
+    <a id="rouletteLink" class="chip" href="?ruleta" target="_blank">ruleta</a>
+    <button class="small" id="btnDownload">DESCARGAR OVERLAY TIMER</button>
+    <button class="small" id="btnDownloadR">DESCARGAR OVERLAY RULETA</button>
+  </div>
+  <div class="flash" id="dlFlash" style="text-align:center;"></div>
+</div>
+
+<!-- HISTORIAL (derecha) -->
+<aside class="col-side">
+  <div class="block hist-card">
+    <div class="block-head">
+      <div class="title">Historial</div>
+      <div class="legend"><span><i style="background:var(--ok)"></i>Automático</span><span><i style="background:var(--danger)"></i>Manual</span><span><i style="background:var(--warn)"></i>No contado</span><span><i style="background:var(--x2)"></i>Multiplicador</span><span><i style="background:#B06BFF"></i>Ruleta</span></div>
+    </div>
+    <div class="hist" id="hist"></div>
+    <div class="hist-foot">
+      <input type="text" id="myName" placeholder="Tu nombre (sale en lo manual)">
+      <button class="ghost small danger" id="btnClearHist">Borrar</button>
+    </div>
+  </div>
+</aside>
+
+</div>
+</div>
+<!--PANEL-END-->
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import {
+    getDatabase, ref, onValue, set, update, get, push, runTransaction,
+    query, orderByValue, endAt, limitToLast, onDisconnect
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import {
+    getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signOut
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  /* ================================================================
+     CONFIGURACIÓN: pega aquí el bloque firebaseConfig de tu proyecto
+  ================================================================ */
+  const firebaseConfig = {
+    apiKey: "PEGA_AQUI",
+    authDomain: "PEGA_AQUI.firebaseapp.com",
+    databaseURL: "https://PEGA_AQUI-default-rtdb.firebaseio.com",
+    projectId: "PEGA_AQUI",
+    storageBucket: "PEGA_AQUI.firebasestorage.app",
+    messagingSenderId: "PEGA_AQUI",
+    appId: "PEGA_AQUI"
+  };
+  const TW_CHANNEL = "grayinner";   // canal de Twitch, en minúsculas
+  /* ================================================================ */
+
+  const BAKED = window.__OVERLAY || null;          // overlay descargado: estilo fijo
+  const PARAMS = new URLSearchParams(location.search);
+  const RULETA = BAKED ? BAKED.mode === "ruleta" : PARAMS.has("ruleta");   // overlay que solo muestra la ruleta
+  const DISPLAY = !!BAKED || PARAMS.has("display") || RULETA;
+
+  const $ = (id) => document.getElementById(id);
+  const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+
+  const stage = $("stage");
+  if (DISPLAY) {
+    document.documentElement.classList.add("display");
+    document.body.classList.add("display");
+    document.body.appendChild(RULETA ? $("rstage") : stage);
+    ["panel", "login"].forEach((id) => { const el = $(id); if (el) el.remove(); });
+  }
+
+  if (String(firebaseConfig.apiKey).startsWith("PEGA")) {
+    if (!DISPLAY) {
+      $("login").classList.add("show");
+      $("loginForm").innerHTML = "<p>Falta pegar la configuración de Firebase (firebaseConfig) en el código.</p>";
+    }
+    throw new Error("firebaseConfig sin configurar");
+  }
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const auth = getAuth(app);
+
+  /* ================= ACCESO =================
+     Overlay: entra solo, como invitado (anónimo). Las reglas solo le dejan sumar.
+     Panel: entra con correo y contraseña; su UID tiene que estar en /admins. */
+  const firstUser = () => new Promise((res) => { const off = onAuthStateChanged(auth, (u) => { off(); res(u); }); });
+  function panelLogin() {
+    $("login").classList.add("show");
+    return new Promise((resolve) => {
+      const go = async () => {
+        $("loginErr").textContent = "";
+        const email = $("loginEmail").value.trim(), pass = $("loginPass").value;
+        if (!email || !pass) { $("loginErr").textContent = "Escribe correo y contraseña."; return; }
+        $("btnLogin").disabled = true;
+        try { const c = await signInWithEmailAndPassword(auth, email, pass); resolve(c.user); }
+        catch (e) { $("loginErr").textContent = "Correo o contraseña incorrectos."; }
+        $("btnLogin").disabled = false;
+      };
+      $("btnLogin").onclick = go;
+      $("loginPass").onkeydown = (e) => { if (e.key === "Enter") go(); };
+    });
+  }
+
+  let user = await firstUser();
+  if (DISPLAY) {
+    if (!user) user = (await signInAnonymously(auth)).user;
+  } else if (!user || user.isAnonymous) {
+    user = await panelLogin();
+  }
+  let IS_ADMIN = false;
+  try { IS_ADMIN = (await get(ref(db, "admins/" + user.uid))).val() === true; } catch (e) {}
+  if (!DISPLAY && !IS_ADMIN) {
+    $("login").classList.add("show");
+    $("loginForm").style.display = "none";
+    $("noAccess").style.display = "flex";
+    $("noAccessUid").textContent = user.uid;
+    $("btnLogout2").onclick = () => signOut(auth).then(() => location.reload());
+    throw new Error("sin permiso de panel");
+  }
+  if (!DISPLAY) { $("login").classList.remove("show"); $("panel").classList.add("show"); }
+
+  // Estructura en RTDB:
+  //   /admins/{uid}: true    quién puede usar el panel (se agrega a mano en la consola)
+  //   /timer       { endTime, isRunning, remainingMs, ended }
+  //   /prices      precios de cada evento
+  //   /boost       { isRunning, endTime, remainingMs, visible, factor, cats }
+  //   /uptime      { start, visible }
+  //   /style       { main, up, mult }  estilo de cada número
+  //   /config      { clientId, token }  login de Twitch para follows
+  //   /history     movimientos
+  //   /events/{id} candado anti doble suma (ID del mensaje de Twitch)
+  //   /follows/{userId}  un follow por persona
+  //   /presence/{instancia}, /followLeader, /followStatus
+  const timerRef  = ref(db, "timer");
+  const pricesRef = ref(db, "prices");
+  const boostRef  = ref(db, "boost");
+  const uptimeRef = ref(db, "uptime");
+  const styleRef  = ref(db, "style");
+  const configRef = ref(db, "config");
+  const historyRef = ref(db, "history");
+
+  const INSTANCE = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  let myName = DISPLAY ? "" : (lsGet("kz_timer_name") || (user.email ? user.email.split("@")[0] : ""));
+  const whereLabel = () => DISPLAY ? "Overlay OBS" : ("Panel" + (myName ? " · " + myName : ""));
+
+  // ganchos que el panel reemplaza; en el overlay no hacen nada
+  const hooks = { prices() {}, config() {}, ircStatus() {} };
+
+  /* ---------------- reloj sincronizado con el servidor ---------------- */
+  let serverOffset = 0;
+  let offsetLoaded = false;
+  onValue(ref(db, ".info/serverTimeOffset"), (s) => { serverOffset = Number(s.val()) || 0; offsetLoaded = true; });
+  const now = () => Date.now() + serverOffset;
+
+  /* ---------------- estado ---------------- */
+  let state = { endTime: 0, isRunning: false, remainingMs: 0, ended: false };
+  let stateLoaded = false;
+
+  const DEFAULT_PRICES = {
+    t1: 300, t2: 600, t3: 1500, bitsPer100: 300,
+    follow: 15, followOn: true,
+    raidBase: 120, raidPerViewer: 0, raidMin: 1, raidOn: true,
+    donation: 60, donationMxn: 60
+  };
+  let prices = { ...DEFAULT_PRICES };
+
+  // tamaño = % del ancho de la pantalla; x / y = % de la pantalla (centro del número)
+  const DEFAULT_STYLE = {
+    main: { font: "orbitron", color: "#FFFFFF", stroke: "#0A1A3A", strokeW: 6, glow: "#2F7BFF", glowSize: 18,
+            size: 12, x: 50, y: 50, spacing: 4 },
+    up:   { font: "orbitron", color: "#000000", stroke: "#FFFFFF", strokeW: 9, glow: "#000000", glowSize: 10,
+            size: 5.4, x: 50, y: 33, spacing: 4, label: "TIEMPO TOTAL", labelSize: 62, showLabel: true },
+    mult: { font: "orbitron", color: "#E3101F", stroke: "#FFFFFF", strokeW: 8, glow: "#000000", glowSize: 25,
+            size: 6.6, x: 50, y: 70, spacing: 4, labelSize: 175 }
+  };
+  const ELS = ["main", "up", "mult"];
+  const mergeStyle = (v) => {
+    const out = {};
+    ELS.forEach((k) => { out[k] = { ...DEFAULT_STYLE[k], ...((v && v[k]) || {}) }; });
+    return out;
+  };
+  let style = mergeStyle(null);
+
+  const FONTS = {
+    orbitron: "'Orbitron', sans-serif",
+    russo: "'Russo One', sans-serif",
+    bebas: "'Bebas Neue', sans-serif",
+    blackops: "'Black Ops One', sans-serif",
+    rajdhani: "'Rajdhani', sans-serif",
+    impact: "Impact, 'Arial Black', sans-serif",
+    mono: "Consolas, 'SFMono-Regular', monospace"
+  };
+  const FONT_WEIGHT = { orbitron: 900, rajdhani: 700 };
+
+  /* ---------------- helpers ---------------- */
+  const pad = (n) => String(n).padStart(2, "0");
+  function fmt(ms) {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+    return `${pad(h)}:${pad(m)}:${pad(s)}`;
+  }
+  function fmtDur(sec) {
+    sec = Math.round(Math.abs(sec));
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    const out = [];
+    if (h) out.push(h + " h");
+    if (m) out.push(m + " min");
+    if (s || !out.length) out.push(s + " seg");
+    return out.join(" ");
+  }
+  function currentRemaining() {
+    return state.isRunning ? Math.max(0, state.endTime - now()) : Math.max(0, state.remainingMs);
+  }
+  const safeKey = (k) => String(k).replace(/[.#$\[\]\/]/g, "_");
+  const num = (v, d = 0) => { const n = Number(v); return isFinite(n) ? n : d; };
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const fmtF = (f) => String(Math.round(num(f, 2) * 100) / 100);   // 2 -> "2", 1.5 -> "1.5"
+
+  /* ================= RULETA =================
+     El panel que gira decide el resultado al azar y lo guarda en Firebase junto con la
+     hora de inicio. Cada overlay dibuja la misma animación con la hora del servidor,
+     así todos muestran el mismo giro y el mismo ganador. */
+  const rouletteRef = ref(db, "roulette");
+  const R_DEFAULT = {
+    title: "RULETA", options: ["+10 min", "+30 min", "x2 por 10 min", "+5 min"],
+    colorA: "#2F7BFF", colorB: "#0A1A3A", textColor: "#FFFFFF", visible: false, rot: 0, spin: null
+  };
+  let roul = { ...R_DEFAULT };
+  const RUL_ON = RULETA || !DISPLAY;               // el overlay del timer no la dibuja
+  const rstage = $("rstage"), rcanvas = $("rcanvas");
+  const rctx = (RUL_ON && rcanvas) ? rcanvas.getContext("2d") : null;
+  const TAU = Math.PI * 2;
+  const easeOut = (x) => 1 - Math.pow(1 - x, 4);
+  const cleanOpts = (a) => (Array.isArray(a) ? a : []).filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim().slice(0, 40)).slice(0, 24);
+
+  function rouletteState() {
+    const sp = roul.spin;
+    if (!sp || !Array.isArray(sp.opts)) return { rot: num(roul.rot), spinning: false, done: false };
+    const t = (now() - num(sp.start)) / Math.max(1, num(sp.dur, 6000));
+    if (t <= 0) return { rot: num(sp.r0), spinning: true, done: false };
+    if (t >= 1) return { rot: num(sp.r1), spinning: false, done: true };
+    return { rot: num(sp.r0) + (num(sp.r1) - num(sp.r0)) * easeOut(t), spinning: true, done: false };
+  }
+  function mixHex(a, b) {
+    const p = (h) => [1, 3, 5].map((i) => parseInt(String(h).slice(i, i + 2), 16) || 0);
+    const x = p(a), y = p(b);
+    return "#" + x.map((v, i) => Math.round((v + y[i]) / 2).toString(16).padStart(2, "0")).join("");
+  }
+  function strokeText(ctx, text, x, y, fs, fill, stroke) {
+    ctx.font = `900 ${fs}px 'Orbitron', sans-serif`;
+    ctx.lineJoin = "round";
+    ctx.lineWidth = fs * 0.22;
+    ctx.strokeStyle = stroke;
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = fill;
+    ctx.fillText(text, x, y);
+  }
+  function drawRoulette() {
+    const dpr = window.devicePixelRatio || 1;
+    const cw = rcanvas.clientWidth, ch = rcanvas.clientHeight;
+    if (!cw || !ch) return;
+    const W = Math.round(cw * dpr), H = Math.round(ch * dpr);
+    if (rcanvas.width !== W || rcanvas.height !== H) { rcanvas.width = W; rcanvas.height = H; }
+    const ctx = rctx;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cw, ch);
+
+    const st = rouletteState();
+    const useSpin = (st.spinning || st.done) && roul.spin;
+    const opts = useSpin ? cleanOpts(roul.spin.opts) : roul.options;
+    const n = opts.length;
+    const winner = st.done ? num(roul.spin.winner, -1) : -1;
+    const A = roul.colorA, B = roul.colorB, T = roul.textColor, DARK = "#04060C";
+    const R = Math.min(cw * 0.42, ch * 0.31);
+    const cx = cw / 2, cy = ch * 0.5;
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const title = String(roul.title || "").trim();
+    if (title) strokeText(ctx, title.toUpperCase(), cx, cy - R - ch * 0.1, ch * 0.075, "#FFFFFF", DARK);
+
+    // aro exterior
+    ctx.beginPath(); ctx.arc(cx, cy, R * 1.04, 0, TAU); ctx.fillStyle = DARK; ctx.fill();
+
+    if (n === 0) {
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.fillStyle = A; ctx.fill();
+    } else {
+      const a = TAU / n;
+      for (let i = 0; i < n; i++) {
+        const s = -Math.PI / 2 + st.rot + i * a;
+        let col = i % 2 ? B : A;
+        if (n % 2 === 1 && n > 1 && i === n - 1) col = mixHex(A, B);   // impar: que no se junten dos iguales
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, s, s + a); ctx.closePath();
+        ctx.fillStyle = col; ctx.fill();
+        ctx.lineWidth = Math.max(1, R * 0.008); ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.stroke();
+      }
+      if (winner >= 0 && winner < n) {   // resalta la ganadora
+        const s = -Math.PI / 2 + st.rot + winner * a;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, s, s + a); ctx.closePath();
+        ctx.fillStyle = "rgba(255,255,255,.18)"; ctx.fill();
+        ctx.lineWidth = R * 0.03; ctx.strokeStyle = "#FFFFFF"; ctx.stroke();
+      }
+      // textos de cada opción
+      ctx.textAlign = "right";
+      for (let i = 0; i < n; i++) {
+        const mid = -Math.PI / 2 + st.rot + (i + 0.5) * a;
+        let fs = Math.min(R * 0.13, R * Math.sin(Math.min(a, Math.PI) / 2) * 0.55 + R * 0.02);
+        ctx.font = `900 ${fs}px 'Orbitron', sans-serif`;
+        const maxW = R * 0.72;
+        while (fs > 7 && ctx.measureText(opts[i]).width > maxW) { fs *= 0.92; ctx.font = `900 ${fs}px 'Orbitron', sans-serif`; }
+        ctx.save();
+        ctx.translate(cx, cy); ctx.rotate(mid);
+        strokeText(ctx, opts[i], R * 0.9, 0, fs, T, "rgba(4,6,12,.85)");
+        ctx.restore();
+      }
+      ctx.textAlign = "center";
+    }
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.lineWidth = R * 0.025; ctx.strokeStyle = "#FFFFFF"; ctx.stroke();
+    // centro
+    ctx.beginPath(); ctx.arc(cx, cy, R * 0.12, 0, TAU); ctx.fillStyle = DARK; ctx.fill();
+    ctx.lineWidth = R * 0.03; ctx.strokeStyle = A; ctx.stroke();
+    // flecha arriba
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - R + R * 0.13);
+    ctx.lineTo(cx - R * 0.1, cy - R - R * 0.1);
+    ctx.lineTo(cx + R * 0.1, cy - R - R * 0.1);
+    ctx.closePath();
+    ctx.fillStyle = "#FFFFFF"; ctx.fill();
+    ctx.lineWidth = R * 0.025; ctx.strokeStyle = DARK; ctx.stroke();
+
+    // ganador
+    if (winner >= 0 && winner < n) {
+      const fs = ch * 0.07, y = cy + R + ch * 0.11;
+      ctx.font = `900 ${fs}px 'Orbitron', sans-serif`;
+      const w = ctx.measureText(opts[winner]).width + fs * 1.4, h = fs * 1.6;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(cx - w / 2, y - h / 2, w, h, h * 0.3); else ctx.rect(cx - w / 2, y - h / 2, w, h);
+      ctx.fillStyle = A; ctx.fill();
+      ctx.lineWidth = fs * 0.08; ctx.strokeStyle = "#FFFFFF"; ctx.stroke();
+      strokeText(ctx, opts[winner], cx, y + fs * 0.04, fs, T, DARK);
+    }
+  }
+
+  if (RUL_ON && rctx) {
+    onValue(rouletteRef, (snap) => {
+      const v = snap.val();
+      if (!v && IS_ADMIN) set(rouletteRef, R_DEFAULT).catch(() => {});
+      const o = v || {};
+      roul = { ...R_DEFAULT, ...o, options: o.options ? cleanOpts(o.options) : R_DEFAULT.options, spin: o.spin || null };
+      if (RULETA) rstage.classList.toggle("off", !roul.visible);
+      else rstage.classList.remove("off");
+      if (hooks.roulette) hooks.roulette();
+    });
+    try { document.fonts.load("900 40px Orbitron"); } catch (e) {}   // el canvas no la pide solo
+    const rloop = () => { drawRoulette(); requestAnimationFrame(rloop); };
+    requestAnimationFrame(rloop);
+  }
+  // el overlay de la ruleta no cuenta eventos ni dibuja el timer
+  if (RULETA) await new Promise(() => {});
+
+  /* ================= RENDER DE LOS NÚMEROS ================= */
+  const tmr = $("tmr"), tmr0 = $("tmr0"), tmr2 = $("tmr2");
+  const NODES = { main: tmr, up: tmr0, mult: tmr2 };
+  const tBack = tmr.querySelector(".t-back");
+  const tFront = tmr.querySelector(".t-front");
+
+  function fitSize() {
+    const w = stage.clientWidth || window.innerWidth;
+    ELS.forEach((k) => { NODES[k].style.fontSize = (w * num(style[k].size, 10) / 100) + "px"; });
+  }
+  new ResizeObserver(fitSize).observe(stage);
+
+  function applyElStyle(node, st) {
+    node.style.left = num(st.x, 50) + "%";
+    node.style.top = num(st.y, 50) + "%";
+    node.style.fontFamily = FONTS[st.font] || FONTS.orbitron;
+    node.style.fontWeight = FONT_WEIGHT[st.font] || 400;
+    node.style.letterSpacing = (num(st.spacing) / 100) + "em";
+    const back = node.querySelector(".t-back"), front = node.querySelector(".t-front");
+    front.style.color = st.color;
+    back.style.color = st.stroke;
+    back.style.webkitTextStroke = st.strokeW > 0 ? `${(st.strokeW * 2) / 100}em ${st.stroke}` : "0 transparent";
+    back.style.textShadow = st.glowSize > 0
+      ? `0 0 ${st.glowSize / 100}em ${st.glow}, 0 0 ${st.glowSize / 50}em ${st.glow}`
+      : "none";
+  }
+  function renderStyle() {
+    ELS.forEach((k) => applyElStyle(NODES[k], style[k]));
+    const showLbl = !!style.up.showLabel && !!String(style.up.label || "").trim();
+    tmr0.querySelectorAll(".upl").forEach((el) => {
+      el.textContent = style.up.label;
+      el.style.fontSize = (num(style.up.labelSize, 62) / 100) + "em";
+      el.style.display = showLbl ? "inline-block" : "none";
+    });
+    tmr2.querySelectorAll(".x2l").forEach((el) => { el.style.fontSize = (num(style.mult.labelSize, 175) / 100) + "em"; });
+    fitSize();
+  }
+
+  let lastText = "";
+  function setText(t) {
+    if (t === lastText) return;
+    lastText = t;
+    tBack.textContent = t;
+    tFront.textContent = t;
+  }
+
+  /* ================= SUSCRIPCIONES ================= */
+  onValue(timerRef, (snap) => {
+    const v = snap.val();
+    if (v) state = { endTime: num(v.endTime), isRunning: !!v.isRunning, remainingMs: num(v.remainingMs), ended: !!v.ended };
+    else {
+      state = { endTime: 0, isRunning: false, remainingMs: 0, ended: false };
+      if (IS_ADMIN) set(timerRef, state).catch(() => {});
+    }
+    stateLoaded = true;
+  });
+
+  if (BAKED) {
+    style = mergeStyle(BAKED.style);
+    renderStyle();
+  } else {
+    onValue(styleRef, (snap) => {
+      const v = snap.val();
+      if (v) style = mergeStyle(v);
+      else if (IS_ADMIN) set(styleRef, DEFAULT_STYLE).catch(() => {});
+      renderStyle();
+      if (hooks.style) hooks.style();
+    });
+  }
+
+  let ircStarted = false;
+  onValue(pricesRef, (snap) => {
+    const v = snap.val();
+    if (v) prices = { ...DEFAULT_PRICES, ...v };
+    else if (IS_ADMIN) set(pricesRef, DEFAULT_PRICES).catch(() => {});
+    hooks.prices();
+    if (!ircStarted) { ircStarted = true; ircConnect(); }  // no escuchar Twitch sin precios cargados
+  });
+
+  /* ================= TIEMPO TOTAL DEL DIRECTO ================= */
+  // Cuenta hacia adelante desde el inicio guardado; no se pausa.
+  let uptime = { start: 0, visible: false };
+  onValue(uptimeRef, (snap) => {
+    const v = snap.val() || {};
+    uptime = { start: num(v.start), visible: !!v.visible };
+    if (hooks.uptime) hooks.uptime();
+  });
+  const uptimeMs = () => uptime.start ? Math.max(0, now() - uptime.start) : 0;
+  const upTimes = tmr0.querySelectorAll(".upt");
+  let lastUp = "";
+  function renderUptime() {
+    // en el panel siempre se ve (transparente si está oculto) para poder acomodarlo
+    tmr0.classList.toggle("show", DISPLAY ? uptime.visible : true);
+    if (!DISPLAY) tmr0.classList.toggle("ghost-el", !uptime.visible);
+    if (DISPLAY && !uptime.visible) return;
+    const t = fmt(uptimeMs());
+    if (t !== lastUp) { lastUp = t; upTimes.forEach((el) => { el.textContent = t; }); }
+  }
+
+  /* ================= MULTIPLICADOR ================= */
+  let boost = { isRunning: false, endTime: 0, remainingMs: 0, visible: false, factor: 2, cats: {} };
+  onValue(boostRef, (snap) => {
+    const v = snap.val() || {};
+    boost = { isRunning: !!v.isRunning, endTime: num(v.endTime), remainingMs: num(v.remainingMs),
+              visible: !!v.visible, factor: Math.max(1, num(v.factor, 2)) || 2, cats: v.cats || {} };
+    if (hooks.boost) hooks.boost();
+  });
+  const boostRemaining = () => boost.isRunning ? Math.max(0, boost.endTime - now()) : Math.max(0, boost.remainingMs);
+  const boostActive = () => boost.isRunning && boost.endTime - now() > 0;
+  // multiplica solo si el contador corre y esa categoría está marcada
+  const mult = (cat) => (cat && boostActive() && boost.cats[cat]) ? boost.factor : 1;
+  const planCat = (plan) => ({ "2000": "t2", "3000": "t3" }[String(plan)] || "t1");
+  function fmtBoost(ms) {
+    const t = Math.ceil(Math.max(0, ms) / 1000);
+    const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+    return h ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  }
+  const t2Times = tmr2.querySelectorAll(".x2t");
+  const t2Labels = tmr2.querySelectorAll(".x2l");
+  let lastT2 = "", lastLab = "", lastBoostZero = -1e9;
+  function renderBoost() {
+    const rem = boostRemaining();
+    const show = boost.visible && rem > 0;
+    tmr2.classList.toggle("show", DISPLAY ? show : true);
+    if (!DISPLAY) tmr2.classList.toggle("ghost-el", !show);
+    const lab = "x" + fmtF(boost.factor);
+    if (lab !== lastLab) { lastLab = lab; t2Labels.forEach((el) => { el.textContent = lab; }); }
+    const t = fmtBoost(rem);
+    if (t !== lastT2) { lastT2 = t; t2Times.forEach((el) => { el.textContent = t; }); }
+    // llegó a 0: lo cierra un panel (el overlay no tiene permiso para tocar el multiplicador)
+    if (IS_ADMIN && boost.isRunning && rem <= 0 && offsetLoaded && performance.now() - lastBoostZero > 2000) {
+      lastBoostZero = performance.now();
+      runTransaction(boostRef, (cur) => {
+        if (!cur || !cur.isRunning || num(cur.endTime) - now() > 0) return;
+        return { ...cur, isRunning: false, remainingMs: 0, endTime: 0 };
+      }).then((res) => { if (res && res.committed) addHistory("x2", "Multiplicador terminado: todo vuelve a lo normal", null); }).catch(() => {});
+    }
+  }
+
+  /* ================= LOOP ================= */
+  let lastStatus = 0, lastZeroTry = -1e9;
+  function tick() {
+    const rem = currentRemaining();
+    setText(fmt(rem));
+    renderBoost();
+    renderUptime();
+    // Llegó a 0: se detiene con transacción y con la hora del servidor ya cargada.
+    if (state.isRunning && rem <= 0 && stateLoaded && offsetLoaded) {
+      const t = performance.now();
+      if (t - lastZeroTry > 2000) {
+        lastZeroTry = t;
+        runTransaction(timerRef, (cur) => {
+          if (!cur || !cur.isRunning) return;              // ya está detenido
+          if (num(cur.endTime) - now() > 0) return;        // alguien sumó tiempo: no tocar
+          return { isRunning: false, remainingMs: 0, endTime: 0, ended: true };
+        }).then((res) => {
+          if (res && res.committed) addHistory("end", "El timer llegó a 0. Terminado: los eventos ya no suman", null);
+        }).catch(() => {});
+      }
+    }
+    if (!DISPLAY) {
+      const t = performance.now();
+      if (t - lastStatus > 250) { lastStatus = t; updateRunStatus(rem); }
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+  renderStyle();
+
+  function updateRunStatus(rem) {
+    const live = state.isRunning && rem > 0;
+    const ended = !state.isRunning && rem <= 0 && state.ended;
+    $("runStatus").classList.toggle("live", live);
+    $("runStatus").classList.toggle("ended", ended);
+    $("runText").textContent = live ? "EN MARCHA" : ended ? "TERMINADO · los eventos ya no suman" : "PAUSADO";
+    $("btnPlay").classList.toggle("active", live);
+    $("btnPause").classList.toggle("active", !live);
+  }
+
+  /* ================= OPERACIONES DEL TIMER ================= */
+  // auto = true para eventos de Twitch: si el timer ya terminó, no suman.
+  async function applyDelta(deltaMs, auto = false) {
+    let blocked = false, endedNow = false;
+    await runTransaction(timerRef, (cur) => {
+      cur = cur || { endTime: 0, isRunning: false, remainingMs: 0 };
+      blocked = false; endedNow = false;
+      if (auto && cur.ended) { blocked = true; return; }
+      if (auto && offsetLoaded && cur.isRunning && num(cur.endTime) - now() <= 0) {
+        blocked = true; endedNow = true;
+        return { isRunning: false, remainingMs: 0, endTime: 0, ended: true };
+      }
+      let rem = cur.isRunning ? Math.max(0, num(cur.endTime) - now()) : Math.max(0, num(cur.remainingMs));
+      rem = Math.max(0, rem + deltaMs);
+      const ended = rem > 0 ? false : !!cur.ended;
+      return cur.isRunning
+        ? { isRunning: true, endTime: now() + rem, remainingMs: rem, ended }
+        : { isRunning: false, endTime: 0, remainingMs: rem, ended };
+    });
+    if (endedNow) addHistory("end", "El timer llegó a 0. Terminado: los eventos ya no suman", null);
+    return !blocked;
+  }
+
+  function addHistory(kind, text, deltaMs, note) {
+    const entry = { ts: now(), kind, text: String(text).slice(0, 280) };
+    if (note) entry.note = String(note).slice(0, 280);
+    if (deltaMs != null) entry.delta = Math.round(deltaMs);
+    if (kind === "manual" || kind === "manual-x2" || kind === "x2" || kind === "ruleta") entry.by = whereLabel();
+    push(historyRef, entry).catch(() => {});
+  }
+
+  /* ---------------- candado anti doble suma ----------------
+     Todos los paneles y overlays reciben el mismo evento con el mismo ID.
+     El primero que reclama el ID en Firebase suma; los demás no hacen nada. */
+  async function claim(path) {
+    try {
+      const res = await runTransaction(ref(db, path), (cur) => {
+        if (cur !== null) return; // ya existe: abortar
+        return now();
+      });
+      return res.committed;
+    } catch (e) { return false; }
+  }
+
+  async function countEvent(lockPath, seconds, text, note, cat) {
+    if (!seconds || seconds <= 0) return;
+    if (!(await claim(lockPath))) return;
+    const m = mult(cat);
+    if (m !== 1) text += " · x" + fmtF(m);
+    const ms = Math.round(seconds * m * 1000);
+    let applied;
+    try {
+      applied = await applyDelta(ms, true);
+    } catch (e) {
+      set(ref(db, lockPath), null).catch(() => {});   // si la suma falla, libera el candado
+      return;
+    }
+    if (applied) addHistory(m !== 1 ? "auto-x2" : "auto", text, ms, note);
+    else addHistory("skip", text, ms, "No sumó: el timer ya había terminado");
+  }
+
+  // limpia candados de eventos de más de 48 h
+  (async () => {
+    try {
+      const old = await get(query(ref(db, "events"), orderByValue(), endAt(Date.now() - 48 * 3600 * 1000)));
+      const del = {};
+      old.forEach((c) => { del["events/" + c.key] = null; });
+      if (Object.keys(del).length) await update(ref(db), del);
+    } catch (e) {}
+  })();
+
+  /* ---------------- presencia: quién está contando ---------------- */
+  const presRef = ref(db, "presence/" + INSTANCE);
+  let ircLive = false;
+  function announce() {
+    set(presRef, { where: whereLabel(), irc: ircLive, ts: now() }).catch(() => {});
+  }
+  onValue(ref(db, ".info/connected"), (s) => {
+    if (s.val() === true) { onDisconnect(presRef).remove(); announce(); }
+  });
+
+  /* ================================================================
+     TWITCH CHAT (IRC anónimo): subs, regalos, bits, raids
+  ================================================================ */
+  function parseTags(raw) {
+    const tags = {};
+    if (!raw.startsWith("@")) return { tags, rest: raw };
+    const sp = raw.indexOf(" ");
+    for (const pair of raw.slice(1, sp).split(";")) {
+      const eq = pair.indexOf("=");
+      tags[pair.slice(0, eq)] = pair.slice(eq + 1);
+    }
+    return { tags, rest: raw.slice(sp + 1) };
+  }
+  const unesc = (s) => String(s || "").replace(/\\s/g, " ");
+
+  function secondsForPlan(plan) {
+    switch (String(plan)) {
+      case "2000": return prices.t2;
+      case "3000": return prices.t3;
+      default: return prices.t1; // Prime, 1000 y desconocido = T1
+    }
+  }
+  const multiNote = (m) => m > 1 ? `Pagó ${m} meses juntos. Se contó como 1 sub; si quieres, suma el resto a mano.` : "";
+  const planLabel = (p) => ({ Prime: "Prime", "1000": "T1", "2000": "T2", "3000": "T3" }[String(p)] || "T1");
+
+  function handleLine(line, sock) {
+    const { tags, rest } = parseTags(line);
+    if (rest.startsWith("PING")) { sock.send("PONG :tmi.twitch.tv"); return; }
+
+    const parts = rest.split(" ");
+    const cmd = rest.startsWith(":") ? parts[1] : parts[0];
+    const user = tags["display-name"] || tags.login || "anónimo";
+    const evId = tags.id || `${tags["msg-id"] || cmd}-${tags["user-id"] || ""}-${tags["tmi-sent-ts"] || ""}`;
+    const lock = "events/" + safeKey(evId);
+
+    // Chat compartido: ignorar lo que viene del canal del otro streamer.
+    if (tags["source-room-id"] && tags["room-id"] && tags["source-room-id"] !== tags["room-id"]) return;
+
+    if (cmd === "PRIVMSG" && tags.bits) {
+      const bits = parseInt(tags.bits, 10);
+      if (bits > 0 && prices.bitsPer100 > 0) {
+        countEvent(lock, (bits / 100) * prices.bitsPer100, `${bits} bits de ${user}`, "", "bits");
+      }
+      return;
+    }
+    if (cmd !== "USERNOTICE") return;
+
+    switch (tags["msg-id"]) {
+      case "sub":
+      case "resub": {
+        const plan = tags["msg-param-sub-plan"];
+        const months = parseInt(tags["msg-param-multimonth-duration"], 10) || 1;
+        countEvent(lock, secondsForPlan(plan), `Sub ${planLabel(plan)} de ${user}`, multiNote(months), planCat(plan));
+        return;
+      }
+      case "subgift":
+      case "anonsubgift": {
+        const plan = tags["msg-param-sub-plan"];
+        const to = tags["msg-param-recipient-display-name"] || "";
+        const months = parseInt(tags["msg-param-gift-months"], 10) || 1;
+        countEvent(lock, secondsForPlan(plan), `Sub ${planLabel(plan)} regalado por ${user}${to ? " a " + to : ""}`, multiNote(months), planCat(plan));
+        return;
+      }
+      case "giftpaidupgrade":
+      case "anongiftpaidupgrade": {
+        const plan = tags["msg-param-sub-plan"] || "1000";
+        const from = unesc(tags["msg-param-sender-name"]) || "";
+        countEvent(lock, secondsForPlan(plan), `Sub ${planLabel(plan)} de ${user} (sigue pagando el sub que le regaló${from ? " " + from : "ron"})`, "", planCat(plan));
+        return;
+      }
+      case "primepaidupgrade": {
+        const plan = tags["msg-param-sub-plan"] || "1000";
+        countEvent(lock, secondsForPlan(plan), `Sub ${planLabel(plan)} de ${user} (pasó de Prime a pagado)`, "", planCat(plan));
+        return;
+      }
+      // submysterygift es solo el anuncio; cada regalo llega aparte como subgift
+      case "raid": {
+        if (!prices.raidOn) return;
+        const viewers = parseInt(tags["msg-param-viewerCount"], 10) || 0;
+        if (viewers < prices.raidMin) return;
+        const raider = unesc(tags["msg-param-displayName"]) || user;
+        const sec = num(prices.raidBase) + viewers * num(prices.raidPerViewer);
+        countEvent(lock, sec, `Raid de ${raider} con ${viewers} viewers`, "", "raid");
+        return;
+      }
+      default: return;
+    }
+  }
+
+  let ws = null, ircRetry = null, ircGen = 0;
+  let ircLastRx = 0, ircPinged = false;
+  setInterval(() => {
+    if (!ws || ws.readyState !== 1) return;
+    const idle = Date.now() - ircLastRx;
+    if (idle > 75000) { try { ws.close(); } catch (e) {} ircConnect(); return; }
+    if (idle > 40000 && !ircPinged) { ircPinged = true; try { ws.send("PING :kz-timer"); } catch (e) {} }
+  }, 15000);
+  function setIrc(live, text) {
+    ircLive = live;
+    announce();
+    hooks.ircStatus(live, text);
+  }
+  function ircConnect() {
+    const gen = ++ircGen;
+    clearTimeout(ircRetry);
+    if (ws) { try { ws.close(); } catch (e) {} }
+    setIrc(false, "conectando");
+    const sock = new WebSocket("wss://irc-ws.chat.twitch.tv:443");
+    ws = sock;
+    sock.onopen = () => {
+      ircLastRx = Date.now(); ircPinged = false;
+      sock.send("CAP REQ :twitch.tv/tags twitch.tv/commands");
+      sock.send("PASS SCHMOOPIIE");
+      sock.send("NICK justinfan" + Math.floor(Math.random() * 80000 + 1000));
+      sock.send("JOIN #" + TW_CHANNEL);
+    };
+    sock.onmessage = (e) => {
+      if (gen !== ircGen) return;
+      ircLastRx = Date.now(); ircPinged = false;
+      for (const line of e.data.split("\r\n")) {
+        if (!line) continue;
+        if (line.includes(" 001 ")) setIrc(true, "conectado");
+        try { handleLine(line, sock); } catch (err) {}
+      }
+    };
+    sock.onclose = () => {
+      if (gen !== ircGen) return;
+      setIrc(false, "reconectando");
+      ircRetry = setTimeout(ircConnect, 4000);
+    };
+    sock.onerror = () => { try { sock.close(); } catch (e) {} };
+  }
+
+  /* ================================================================
+     FOLLOWS (EventSub). Solo UNA instancia escucha a la vez (líder).
+  ================================================================ */
+  let cfg = { clientId: "", token: "" };
+  let isLeader = false;
+  const leaderRef = ref(db, "followLeader");
+  const followStatusRef = ref(db, "followStatus");
+
+  onValue(configRef, (snap) => {
+    const v = snap.val() || {};
+    const next = { clientId: v.clientId || "", token: v.token || "" };
+    const changed = next.clientId !== cfg.clientId || next.token !== cfg.token;
+    cfg = next;
+    hooks.config(cfg);
+    if (changed) {
+      if (isLeader) followConnect();
+      leaderBeat();
+    }
+  });
+
+  function setFollowStatus(text, mode) {
+    if (!isLeader) return;
+    set(followStatusRef, { text, mode: mode || "", where: whereLabel(), ts: now() }).catch(() => {});
+  }
+  const dropToken = () => { if (IS_ADMIN) update(configRef, { token: null }).catch(() => {}); };
+
+  async function leaderBeat() {
+    try {
+      if (!cfg.clientId || !cfg.token) {
+        if (isLeader) {
+          isLeader = false; followStop();
+          runTransaction(leaderRef, (cur) => (cur && cur.id === INSTANCE) ? null : undefined).catch(() => {});
+        }
+        return;
+      }
+      const res = await runTransaction(leaderRef, (cur) => {
+        const t = now();
+        if (!cur || cur.id === INSTANCE || t - num(cur.ts) > 15000) return { id: INSTANCE, ts: t, where: whereLabel() };
+        return; // otro es líder: abortar
+      });
+      const v = res.snapshot.val();
+      const mine = res.committed && v && v.id === INSTANCE;
+      if (mine && !isLeader) { isLeader = true; followConnect(); }
+      else if (!mine && isLeader) { isLeader = false; followStop(); }
+    } catch (e) {}
+  }
+  setInterval(leaderBeat, 5000);
+  addEventListener("beforeunload", () => {
+    if (isLeader) set(leaderRef, null);
+  });
+
+  let esWs = null, esGen = 0, esRetry = null, fctx = null;
+  let esLastRx = 0, esKeepalive = 10;
+  setInterval(() => {
+    if (!isLeader || !esWs || esWs.readyState !== 1) return;
+    if (Date.now() - esLastRx > (esKeepalive + 20) * 1000) {
+      setFollowStatus("sin señal de Twitch, reconectando", "err");
+      followConnect();
+    }
+  }, 5000);
+  setInterval(async () => {
+    if (!isLeader || !cfg.token) return;
+    try {
+      const vr = await fetch("https://id.twitch.tv/oauth2/validate", { headers: { Authorization: "OAuth " + cfg.token } });
+      if (vr.status === 401) { setFollowStatus("login vencido, autoriza de nuevo", "err"); dropToken(); }
+    } catch (e) {}
+  }, 60 * 60 * 1000);
+
+  function followStop() {
+    esGen++;
+    clearTimeout(esRetry);
+    if (esWs) { try { esWs.close(); } catch (e) {} }
+    esWs = null;
+  }
+
+  async function followConnect() {
+    followStop();
+    const gen = esGen;
+    if (!cfg.clientId || !cfg.token) return;
+    setFollowStatus("validando login", "");
+    try {
+      const vr = await fetch("https://id.twitch.tv/oauth2/validate", { headers: { Authorization: "OAuth " + cfg.token } });
+      if (gen !== esGen) return;
+      if (vr.status === 401) { setFollowStatus("login vencido, autoriza de nuevo", "err"); dropToken(); return; }
+      const v = await vr.json();
+      if (v.client_id !== cfg.clientId) { setFollowStatus("el login es de otro Client ID, autoriza de nuevo", "err"); return; }
+      const headers = { "Client-Id": cfg.clientId, Authorization: "Bearer " + cfg.token };
+      const ur = await fetch("https://api.twitch.tv/helix/users?login=" + TW_CHANNEL, { headers });
+      const ud = await ur.json();
+      const broadcasterId = ud.data && ud.data[0] && ud.data[0].id;
+      if (!broadcasterId) throw new Error("no broadcaster");
+      if (gen !== esGen) return;
+      fctx = { headers, modId: v.user_id, modLogin: v.login, broadcasterId };
+      openEventSub("wss://eventsub.wss.twitch.tv/ws", false, gen);
+    } catch (e) {
+      if (gen !== esGen) return;
+      setFollowStatus("error de red, reintentando", "err");
+      esRetry = setTimeout(followConnect, 8000);
+    }
+  }
+
+  function openEventSub(url, isReconnect, gen) {
+    const sock = new WebSocket(url);
+    sock.onmessage = async (e) => {
+      if (gen !== esGen) return;
+      esLastRx = Date.now();
+      let m; try { m = JSON.parse(e.data); } catch (err) { return; }
+      const type = m.metadata && m.metadata.message_type;
+      if (type === "session_welcome") {
+        esKeepalive = num(m.payload.session.keepalive_timeout_seconds, 10) || 10;
+        const old = esWs;
+        esWs = sock;
+        if (old && old !== sock) { old._replaced = true; try { old.close(); } catch (err) {} }
+        if (!isReconnect) await subscribeFollow(m.payload.session.id, gen);
+      } else if (type === "notification" && m.metadata.subscription_type === "channel.follow") {
+        onFollow(m.payload.event);
+      } else if (type === "session_reconnect") {
+        openEventSub(m.payload.session.reconnect_url, true, gen);
+      } else if (type === "revocation") {
+        setFollowStatus("permiso revocado, autoriza de nuevo", "err");
+      }
+    };
+    sock.onclose = () => {
+      if (gen !== esGen || sock._replaced) return;
+      if (esWs && esWs !== sock) return;
+      setFollowStatus("desconectado, reintentando", "err");
+      esRetry = setTimeout(followConnect, 5000);
+    };
+    if (!esWs) esWs = sock;
+  }
+
+  async function subscribeFollow(sessionId, gen) {
+    const r = await fetch("https://api.twitch.tv/helix/eventsub/subscriptions", {
+      method: "POST",
+      headers: { ...fctx.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "channel.follow",
+        version: "2",
+        condition: { broadcaster_user_id: fctx.broadcasterId, moderator_user_id: fctx.modId },
+        transport: { method: "websocket", session_id: sessionId }
+      })
+    });
+    if (gen !== esGen) return;
+    if (r.ok) {
+      setFollowStatus("escuchando (login " + fctx.modLogin + ")", "live");
+    } else if (r.status === 403) {
+      followStop();
+      setFollowStatus(fctx.modLogin + " no es mod de " + TW_CHANNEL, "err");
+    } else {
+      followStop();
+      setFollowStatus("no se pudo suscribir (" + r.status + "), reintentando", "err");
+      esRetry = setTimeout(followConnect, 10000);
+    }
+  }
+
+  function onFollow(ev) {
+    if (!prices.followOn) return;
+    // la llave es el user_id: cada persona suma una sola vez
+    countEvent("follows/" + safeKey(ev.user_id), num(prices.follow), `Follow de ${ev.user_name || ev.user_login}`, "", "follow");
+  }
+
+  /*PANEL-ONLY-START*/
+  if (!DISPLAY) {
+    const flash = (id, msg) => { const el = $(id); el.textContent = msg; clearTimeout(el._t); el._t = setTimeout(() => el.textContent = "", 3500); };
+
+    $("whoEmail").textContent = user.email || "";
+    $("chanLabel").textContent = TW_CHANNEL;
+    $("btnLogout").addEventListener("click", () => signOut(auth).then(() => location.reload()));
+
+    /* ---------------- nombre ---------------- */
+    $("myName").value = myName;
+    $("myName").addEventListener("change", () => {
+      myName = $("myName").value.trim();
+      lsSet("kz_timer_name", myName);
+      announce();
+    });
+
+    /* ---------------- play / pausa ---------------- */
+    $("btnPlay").addEventListener("click", async () => {
+      let did = false;
+      await runTransaction(timerRef, (cur) => {
+        cur = cur || { endTime: 0, isRunning: false, remainingMs: 0 };
+        did = false;
+        if (cur.isRunning) return cur;
+        const rem = Math.max(0, num(cur.remainingMs));
+        if (rem <= 0) return cur;
+        did = true;
+        return { isRunning: true, endTime: now() + rem, remainingMs: rem, ended: false };
+      });
+      if (did) addHistory("manual", "Play", null);
+    });
+    $("btnPause").addEventListener("click", async () => {
+      let did = false;
+      await runTransaction(timerRef, (cur) => {
+        cur = cur || { endTime: 0, isRunning: false, remainingMs: 0 };
+        did = false;
+        if (!cur.isRunning) return cur;
+        did = true;
+        return { isRunning: false, remainingMs: Math.max(0, num(cur.endTime) - now()), endTime: 0, ended: false };
+      });
+      if (did) addHistory("manual", "Pausa", null);
+    });
+
+    /* ---------------- agregar o quitar tiempo ---------------- */
+    const ADJ_INPUT = { 3600: "adjH", 60: "adjM", 1: "adjS" };
+    const ADJ_CONV = { 3600: "cvH", 60: "cvM", 1: "cvS" };
+    const ADJ_NAME = { 3600: ["hora", "horas"], 60: ["minuto", "minutos"], 1: ["segundo", "segundos"] };
+    function adjSeconds(unit) {
+      const v = Math.floor(Math.abs(num($(ADJ_INPUT[unit]).value)));
+      return { count: v, sec: v * unit };
+    }
+    function renderAdjConv() {
+      for (const unit of [3600, 60, 1]) {
+        const { count, sec } = adjSeconds(unit);
+        const show = count > 0 && ((unit === 1 && sec >= 60) || (unit === 60 && sec >= 3600));
+        $(ADJ_CONV[unit]).textContent = show ? "= " + fmtDur(sec) : "";
+      }
+    }
+    Object.values(ADJ_INPUT).forEach((id) => $(id).addEventListener("input", renderAdjConv));
+    renderAdjConv();
+
+    document.querySelectorAll("[data-adj]").forEach((b) => {
+      b.addEventListener("click", async () => {
+        const unit = Number(b.dataset.adj), sign = Number(b.dataset.sign);
+        const { count, sec } = adjSeconds(unit);
+        if (!sec) return;
+        const label = `${count} ${ADJ_NAME[unit][count === 1 ? 0 : 1]}`;
+        if (sign > 0) {
+          await applyDelta(sec * 1000);
+          addHistory("manual", `Agregado a mano: ${label}`, sec * 1000);
+        } else {
+          const before = currentRemaining();
+          await applyDelta(-sec * 1000);
+          addHistory("manual", `Quitado a mano: ${label}`, -Math.min(before, sec * 1000));
+        }
+      });
+    });
+
+    /* ---------------- tiempo total ---------------- */
+    const toLocalInput = (ms) => { const d = new Date(ms); return new Date(ms - d.getTimezoneOffset() * 60000).toISOString().slice(0, 19); };
+    const setVis = (id, on, onText, offText) => { const el = $(id); el.classList.toggle("on", on); el.textContent = on ? onText : offText; };
+    hooks.uptime = () => {
+      setVis("upVis", uptime.visible, "EN PANTALLA", "OCULTO");
+      $("btnUpShow").classList.toggle("on", uptime.visible);
+      $("btnUpShow").textContent = uptime.visible ? "OCULTAR DEL OVERLAY" : "MOSTRAR EN OVERLAY";
+      $("upStartVal").textContent = uptime.start
+        ? new Date(uptime.start).toLocaleString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" })
+        : "Sin definir";
+      if (uptime.start && document.activeElement !== $("upStartInput")) $("upStartInput").value = toLocalInput(uptime.start);
+    };
+    setInterval(() => { $("upClock").textContent = fmt(uptimeMs()); }, 250);
+    $("btnUpShow").addEventListener("click", () => update(uptimeRef, { visible: !uptime.visible }));
+    $("btnUpSave").addEventListener("click", async () => {
+      const v = $("upStartInput").value;
+      const ms = v ? new Date(v).getTime() : NaN;
+      if (!isFinite(ms)) { $("upStartInput").focus(); return; }
+      await update(uptimeRef, { start: ms });
+      addHistory("manual", "Inicio del tiempo total cambiado a " + new Date(ms).toLocaleString("es-MX"), null);
+    });
+    $("btnUpNow").addEventListener("click", async () => {
+      if (uptime.start && !confirm("¿Reiniciar el tiempo total desde ahora?")) return;
+      await update(uptimeRef, { start: now() });
+      addHistory("manual", "Tiempo total iniciado desde ahora", null);
+    });
+
+    /* ---------------- multiplicador ---------------- */
+    hooks.boost = () => {
+      document.querySelectorAll("[data-bcat]").forEach((c) => { c.checked = !!boost.cats[c.dataset.bcat]; });
+      $("btnBoostShow").classList.toggle("on", boost.visible);
+      $("btnBoostShow").textContent = boost.visible ? "OCULTAR DEL OVERLAY" : "MOSTRAR EN OVERLAY";
+      document.querySelectorAll("[data-factor]").forEach((b) => b.classList.toggle("on", Number(b.dataset.factor) === boost.factor));
+      $("factorNow").textContent = "x" + fmtF(boost.factor);
+      updateQuickLabels();
+    };
+    setInterval(() => {
+      const rem = boostRemaining(), live = boostActive();
+      $("boostClock").textContent = fmtBoost(rem);
+      $("boostStatus").classList.toggle("live", live);
+      $("boostText").textContent = live ? "ACTIVO · cuenta x" + fmtF(boost.factor) : rem > 0 ? "EN PAUSA · no multiplica" : "INACTIVO";
+      // en el overlay solo aparece si está marcado para mostrarse y le queda tiempo
+      setVis("multVis", boost.visible && rem > 0, "EN PANTALLA", boost.visible ? "OCULTO · sin tiempo" : "OCULTO");
+    }, 250);
+    async function setFactor(f) {
+      f = Math.round(Math.min(20, Math.max(1, num(f, 2))) * 100) / 100;
+      if (f === boost.factor) return;
+      await update(boostRef, { factor: f });
+      addHistory("x2", "Multiplicador cambiado a x" + fmtF(f), null);
+    }
+    document.querySelectorAll("[data-factor]").forEach((b) => b.addEventListener("click", () => setFactor(b.dataset.factor)));
+    $("btnFactorSet").addEventListener("click", () => {
+      const f = num($("factorInput").value, NaN);
+      if (!isFinite(f) || f < 1) { $("factorInput").focus(); return; }
+      setFactor(f);
+    });
+    $("factorInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("btnFactorSet").click(); });
+
+    document.querySelectorAll("[data-bcat]").forEach((c) => {
+      c.addEventListener("change", () => { update(boostRef, { ["cats/" + c.dataset.bcat]: c.checked }); updateQuickLabels(); });
+    });
+    $("btnBoostSet").addEventListener("click", async () => {
+      const min = Math.max(0, num($("boostMin").value));
+      if (!min) { $("boostMin").focus(); return; }
+      const ms = Math.round(min * 60000);
+      await runTransaction(boostRef, (cur) => {
+        cur = cur || {};
+        return cur.isRunning ? { ...cur, endTime: now() + ms, remainingMs: ms } : { ...cur, isRunning: false, endTime: 0, remainingMs: ms };
+      });
+      addHistory("x2", `Multiplicador puesto en ${min} min`, null);
+    });
+    $("btnBoostPlay").addEventListener("click", async () => {
+      let started = false;
+      await runTransaction(boostRef, (cur) => {
+        cur = cur || {};
+        started = false;
+        if (cur.isRunning) return cur;
+        let rem = Math.max(0, num(cur.remainingMs));
+        if (rem <= 0) rem = Math.round(Math.max(0, num($("boostMin").value)) * 60000);  // sin tiempo puesto: usa la casilla
+        if (rem <= 0) return cur;
+        started = true;
+        return { ...cur, factor: num(cur.factor, 2) || 2, isRunning: true, endTime: now() + rem, remainingMs: rem };
+      });
+      if (started) {
+        const on = Object.keys(boost.cats).filter((k) => boost.cats[k]);
+        addHistory("x2", `Multiplicador x${fmtF(boost.factor)} activado (${fmtBoost(boostRemaining())})` + (on.length ? "" : " · ojo: no hay nada marcado"), null);
+      }
+    });
+    $("btnBoostPause").addEventListener("click", async () => {
+      let did = false;
+      await runTransaction(boostRef, (cur) => {
+        did = false;
+        if (!cur || !cur.isRunning) return;
+        did = true;
+        return { ...cur, isRunning: false, remainingMs: Math.max(0, num(cur.endTime) - now()), endTime: 0 };
+      });
+      if (did) addHistory("x2", "Multiplicador en pausa", null);
+    });
+    $("btnBoostShow").addEventListener("click", () => update(boostRef, { visible: !boost.visible }));
+
+    const quickNames = { t1: "Sub Tier 1 sumado a mano", t2: "Sub Tier 2 sumado a mano", t3: "Sub Tier 3 sumado a mano", follow: "Follow sumado a mano", donation: "Donación PayPal de 1 USD", donationMxn: "Donación PayPal de 20 MXN" };
+    document.querySelectorAll("[data-quick]").forEach((b) => {
+      b.addEventListener("click", async () => {
+        const k = b.dataset.quick, m = mult(k);
+        const sec = num(prices[k]) * m;
+        if (sec <= 0) return;
+        await applyDelta(sec * 1000);
+        addHistory(m !== 1 ? "manual-x2" : "manual", quickNames[k] + (m !== 1 ? " · x" + fmtF(m) : ""), sec * 1000);
+      });
+    });
+
+    // casillas HH : MM : SS. Minutos y segundos topan en 59; horas sin límite.
+    function clampField(id, max) {
+      const el = $(id);
+      if (el.value === "") return;
+      let v = Math.floor(Math.abs(num(el.value)));
+      if (max != null && v > max) v = max;
+      if (String(v) !== el.value) el.value = v;
+    }
+    $("ovH").addEventListener("input", () => clampField("ovH", null));
+    $("ovM").addEventListener("input", () => clampField("ovM", 59));
+    $("ovS").addEventListener("input", () => clampField("ovS", 59));
+    $("btnSetExact").addEventListener("click", async () => {
+      if ($("ovH").value === "" && $("ovM").value === "" && $("ovS").value === "") return;
+      ["ovH", "ovM", "ovS"].forEach((id, i) => clampField(id, i ? 59 : null));
+      const h = num($("ovH").value), m = num($("ovM").value), s = num($("ovS").value);
+      const rem = Math.max(0, ((h * 3600) + (m * 60) + s) * 1000);
+      const before = currentRemaining();
+      await runTransaction(timerRef, (cur) => {
+        cur = cur || {};
+        const ended = rem > 0 ? false : !!cur.ended;   // poner tiempo > 0 reactiva el timer
+        return cur.isRunning
+          ? { isRunning: true, endTime: now() + rem, remainingMs: rem, ended }
+          : { isRunning: false, endTime: 0, remainingMs: rem, ended };
+      });
+      addHistory("manual", `Sobrescrito de ${fmt(before)} a ${fmt(rem)}`, rem - before);
+      ["ovH", "ovM", "ovS"].forEach((id) => { $(id).value = ""; });
+    });
+
+    /* ---------------- historial ---------------- */
+    const histEl = $("hist");
+    const today = () => new Date().toDateString();
+    function timeLabel(ts) {
+      const d = new Date(ts);
+      const t = d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+      return d.toDateString() === today() ? t : d.toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit" }) + " " + t;
+    }
+    onValue(query(historyRef, limitToLast(300)), (snap) => {
+      const rows = [];
+      snap.forEach((c) => { rows.push(c.val()); });
+      rows.reverse();
+      histEl.innerHTML = rows.map((h) => {
+        const kind = ({ manual: "manual", skip: "skip", end: "skip", "auto-x2": "x2", "manual-x2": "x2", x2: "x2", ruleta: "roul" })[h.kind] || "auto";
+        let d = "";
+        if (h.kind === "ruleta") d = "RULETA";
+        else if (h.kind === "skip") d = "no sumó";
+        else if (h.kind === "end") d = "FIN";
+        else if (h.kind === "x2") d = "MULT";
+        else if (h.delta != null) d = (h.delta >= 0 ? "+" : "-") + fmtDur(h.delta / 1000);
+        const by = h.by ? `<em>${esc(h.by)}</em>` : "";
+        const note = h.note ? `<span class="hn">${esc(h.note)}</span>` : "";
+        return `<div class="hrow ${kind}"><span class="hx">${esc(h.text)}</span><span class="hd">${d}</span>${note}<span class="ht">${timeLabel(h.ts)}${by}</span></div>`;
+      }).join("");
+    });
+    $("btnClearHist").addEventListener("click", () => {
+      if (confirm("¿Borrar todo el historial? El timer no se toca.")) set(historyRef, null);
+    });
+
+    /* ---------------- conexiones ---------------- */
+    onValue(ref(db, "presence"), (snap) => {
+      const list = [];
+      snap.forEach((c) => { const v = c.val(); if (v) list.push({ id: c.key, ...v }); });
+      const el = $("connList");
+      if (!list.length) { el.innerHTML = `<div class="status err"><span class="dot"></span>Nadie conectado</div>`; return; }
+      el.innerHTML = list.map((p) => {
+        const me = p.id === INSTANCE ? " (este)" : "";
+        return `<div class="status ${p.irc ? "live" : "err"}"><span class="dot"></span>${esc(p.where)}${me} · ${p.irc ? "chat conectado" : "chat desconectado"}</div>`;
+      }).join("");
+    });
+
+    /* ---------------- follows: autorización ---------------- */
+    const REDIRECT = location.origin + location.pathname;
+    if (location.hash.includes("access_token=")) {
+      const t = new URLSearchParams(location.hash.slice(1)).get("access_token");
+      if (t) update(configRef, { token: t });
+      history.replaceState(null, "", location.pathname + location.search);
+    }
+    hooks.config = (c) => {
+      if (document.activeElement !== $("clientId")) $("clientId").value = c.clientId;
+      renderFollowStatus();
+    };
+    hooks.config(cfg);
+    $("clientId").addEventListener("change", () => update(configRef, { clientId: $("clientId").value.trim() }));
+    $("btnAuth").addEventListener("click", async () => {
+      const cid = $("clientId").value.trim();
+      if (!cid) { $("folText").textContent = "ESCRIBE EL CLIENT ID"; return; }
+      await update(configRef, { clientId: cid });
+      location.href = "https://id.twitch.tv/oauth2/authorize"
+        + "?response_type=token"
+        + "&client_id=" + encodeURIComponent(cid)
+        + "&redirect_uri=" + encodeURIComponent(REDIRECT)
+        + "&scope=" + encodeURIComponent("moderator:read:followers")
+        + "&force_verify=true";
+    });
+    $("btnFolOff").addEventListener("click", () => {
+      if (confirm("¿Quitar el login de Twitch? Los follows dejarán de contarse.")) update(configRef, { token: null });
+    });
+
+    let fStatus = null, fLeader = null;
+    onValue(followStatusRef, (s) => { fStatus = s.val(); renderFollowStatus(); });
+    onValue(leaderRef, (s) => { fLeader = s.val(); renderFollowStatus(); });
+    setInterval(renderFollowStatus, 5000);
+    function renderFollowStatus() {
+      const el = $("folStatus"), tx = $("folText");
+      let text, mode = "";
+      if (!cfg.clientId) text = "FALTA CLIENT ID";
+      else if (!cfg.token) text = "SIN AUTORIZAR";
+      else if (!fLeader || now() - num(fLeader.ts) > 20000) { text = "NADIE ESCUCHANDO FOLLOWS"; mode = "err"; }
+      else if (fStatus) { text = `${fStatus.text} · en ${fLeader.where}`; mode = fStatus.mode; }
+      else text = "CONECTANDO...";
+      tx.textContent = text.toUpperCase();
+      el.classList.toggle("live", mode === "live");
+      el.classList.toggle("err", mode === "err");
+    }
+
+    /* ---------------- precios ---------------- */
+    const TKEYS = ["t1", "t2", "t3", "bitsPer100", "follow", "raidBase", "donation", "donationMxn"];
+    const secInput = (k) => document.querySelector(`input.sec[data-key="${k}"]`);
+    function readT(k) { return Math.max(0, Math.round(num(secInput(k).value))); }
+    function writeT(k, sec) { secInput(k).value = Math.max(0, Math.round(num(sec))); }
+    function renderConversions() {
+      TKEYS.forEach((k) => {
+        document.querySelector(`.conv[data-conv="${k}"]`).textContent = "= " + fmtDur(readT(k));
+      });
+    }
+    function readPriceForm() {
+      const p = {};
+      TKEYS.forEach((k) => { p[k] = readT(k); });
+      p.raidPerViewer = Math.max(0, num($("cfgRaidPer").value));
+      p.raidMin = Math.max(0, Math.floor(num($("cfgRaidMin").value)));
+      p.followOn = $("cfgFollowOn").checked;
+      p.raidOn = $("cfgRaidOn").checked;
+      return p;
+    }
+    function fillPriceForm(p) {
+      TKEYS.forEach((k) => writeT(k, p[k]));
+      $("cfgRaidPer").value = p.raidPerViewer;
+      $("cfgRaidMin").value = p.raidMin;
+      $("cfgFollowOn").checked = !!p.followOn;
+      $("cfgRaidOn").checked = !!p.raidOn;
+    }
+    function renderExamples(p) {
+      const raid = (v) => (!p.raidOn ? "apagado" : v < p.raidMin ? "no suma (menos del mínimo)" : fmtDur(p.raidBase + v * p.raidPerViewer));
+      $("priceExamples").innerHTML = [
+        `1 sub T1 = <b>${fmtDur(p.t1)}</b> · 5 subs T1 regalados = <b>${fmtDur(p.t1 * 5)}</b>`,
+        `1 sub T2 = <b>${fmtDur(p.t2)}</b> · 1 sub T3 = <b>${fmtDur(p.t3)}</b>`,
+        `100 bits = <b>${fmtDur(p.bitsPer100)}</b> · 500 bits = <b>${fmtDur(p.bitsPer100 * 5)}</b>`,
+        `Donación de 1 USD = <b>${fmtDur(p.donation)}</b> · de 10 USD = <b>${fmtDur(p.donation * 10)}</b>`,
+        `Donación de 20 MXN = <b>${fmtDur(p.donationMxn)}</b> · de 100 MXN = <b>${fmtDur(p.donationMxn * 5)}</b>`,
+        `Follow = <b>${p.followOn ? fmtDur(p.follow) : "apagado"}</b>`,
+        `Raid de 10 viewers = <b>${raid(10)}</b> · de 50 = <b>${raid(50)}</b>`
+      ].join("<br>");
+    }
+    function updateQuickLabels() {
+      [["t1", "qT1v"], ["t2", "qT2v"], ["t3", "qT3v"], ["follow", "qFollowv"], ["donation", "qDonUsdv"], ["donationMxn", "qDonMxnv"]].forEach(([k, id]) => {
+        const m = mult(k);
+        $(id).textContent = "+ " + fmtDur(num(prices[k]) * m) + (m !== 1 ? "  (x" + fmtF(m) + ")" : "");
+      });
+    }
+    setInterval(updateQuickLabels, 1000);   // por si el multiplicador termina solo
+    let priceDirty = false;
+    let firstPrices = true;
+    hooks.prices = () => {
+      if (!priceDirty) fillPriceForm(prices);
+      else if (!firstPrices) {
+        $("priceFlash").textContent = "Otro panel acaba de guardar precios. Si guardas ahora, se quedan los tuyos. Usa Descartar para ver los suyos.";
+      }
+      firstPrices = false;
+      renderConversions();
+      renderExamples(readPriceForm());
+      updateQuickLabels();
+    };
+    hooks.prices();
+    $("pricesBlock").addEventListener("input", () => {
+      priceDirty = true;
+      renderConversions();
+      renderExamples(readPriceForm());
+      $("priceFlash").textContent = "Hay cambios sin guardar";
+    });
+    $("btnSavePrices").addEventListener("click", async () => {
+      const p = readPriceForm();
+      priceDirty = false;
+      await set(pricesRef, p);
+      flash("priceFlash", "Precios guardados. Aplican desde ahora; el timer no se toca.");
+    });
+    $("btnDiscardPrices").addEventListener("click", () => {
+      priceDirty = false;
+      fillPriceForm(prices);
+      renderConversions();
+      renderExamples(readPriceForm());
+      flash("priceFlash", "Cambios descartados.");
+    });
+
+    /* ---------------- estilo de los números ---------------- */
+    let tab = "main";
+    const SLIDERS = [
+      { k: "size", label: "Tamaño", min: 1, max: 40, step: 0.1, unit: "%" },
+      { k: "x", label: "Posición horizontal", min: 0, max: 100, step: 0.1, unit: "%" },
+      { k: "y", label: "Posición vertical", min: 0, max: 100, step: 0.1, unit: "%" },
+      { k: "strokeW", label: "Grosor del borde", min: 0, max: 20, step: 0.5, unit: "" },
+      { k: "glowSize", label: "Brillo", min: 0, max: 60, step: 1, unit: "" },
+      { k: "spacing", label: "Espaciado", min: -10, max: 30, step: 1, unit: "" },
+      { k: "labelSize", label: "Tamaño de la etiqueta", min: 20, max: 250, step: 1, unit: "%", only: ["up", "mult"] }
+    ];
+    const COLORS = { font: "stFont", color: "stColor", stroke: "stStroke", glow: "stGlow" };
+    const decimals = (step) => (String(step).split(".")[1] || "").length;
+    $("sliders").innerHTML = SLIDERS.map((s) => `
+      <div class="srow" data-k="${s.k}">
+        <label>${s.label}</label>
+        <input type="range" min="${s.min}" max="${s.max}" step="${s.step}" data-r="${s.k}">
+        <div class="snum">
+          <button class="ghost" data-dec="${s.k}" title="Menos">-</button>
+          <input type="number" class="nospin" min="${s.min}" max="${s.max}" step="${s.step}" data-n="${s.k}">
+          <button class="ghost" data-inc="${s.k}" title="Más">+</button>
+          <span>${s.unit}</span>
+        </div>
+      </div>`).join("");
+    const sdef = (k) => SLIDERS.find((s) => s.k === k);
+    const clampS = (k, v) => { const s = sdef(k); v = Math.min(s.max, Math.max(s.min, num(v, s.min))); return Number(v.toFixed(decimals(s.step))); };
+
+    let styleTimer = null;
+    const queueSave = () => { clearTimeout(styleTimer); styleTimer = setTimeout(() => set(styleRef, style).catch(() => flash("styleFlash", "No se pudo guardar el estilo.")), 150); };
+
+    function syncStyleInputs() {
+      const st = style[tab];
+      for (const [k, id] of Object.entries(COLORS)) if (document.activeElement !== $(id)) $(id).value = st[k];
+      SLIDERS.forEach((s) => {
+        const row = document.querySelector(`.srow[data-k="${s.k}"]`);
+        row.style.display = (!s.only || s.only.includes(tab)) ? "" : "none";
+        const r = row.querySelector("[data-r]"), n = row.querySelector("[data-n]");
+        if (document.activeElement !== r) r.value = st[s.k];
+        if (document.activeElement !== n) n.value = st[s.k];
+      });
+      $("extraUp").style.display = tab === "up" ? "" : "none";
+      if (tab === "up") {
+        if (document.activeElement !== $("stLabel")) $("stLabel").value = style.up.label;
+        $("stShowLabel").checked = !!style.up.showLabel;
+      }
+      ELS.forEach((k) => NODES[k].classList.toggle("sel", k === tab));
+    }
+    function setStyleVal(k, v) {
+      style[tab][k] = v;
+      renderStyle();
+      syncStyleInputs();
+      queueSave();
+    }
+    function selectTab(k) {
+      tab = k;
+      document.querySelectorAll("#stTabs [data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === k));
+      syncStyleInputs();
+    }
+    hooks.style = syncStyleInputs;
+    syncStyleInputs();
+
+    document.querySelectorAll("#stTabs [data-tab]").forEach((b) => b.addEventListener("click", () => selectTab(b.dataset.tab)));
+    for (const [k, id] of Object.entries(COLORS)) $(id).addEventListener("input", () => setStyleVal(k, $(id).value));
+    $("sliders").addEventListener("input", (e) => {
+      const k = e.target.dataset.r || e.target.dataset.n;
+      if (!k) return;
+      if (e.target.value === "" || e.target.value === "-") return;   // dejar escribir
+      setStyleVal(k, clampS(k, e.target.value));
+    });
+    $("sliders").addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (!b) return;
+      const k = b.dataset.inc || b.dataset.dec;
+      const s = sdef(k);
+      setStyleVal(k, clampS(k, num(style[tab][k]) + (b.dataset.inc ? s.step : -s.step)));
+    });
+    $("stLabel").addEventListener("input", () => setStyleVal("label", $("stLabel").value));
+    $("stShowLabel").addEventListener("change", () => setStyleVal("showLabel", $("stShowLabel").checked));
+    $("btnCenterX").addEventListener("click", () => setStyleVal("x", 50));
+    $("btnStyleReset").addEventListener("click", () => {
+      style[tab] = { ...DEFAULT_STYLE[tab] };
+      renderStyle(); syncStyleInputs(); queueSave();
+      flash("styleFlash", "Estilo restablecido.");
+    });
+
+    // arrastrar los números en la vista previa
+    let drag = null;
+    ELS.forEach((k) => {
+      const node = NODES[k];
+      node.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        selectTab(k);
+        const r = stage.getBoundingClientRect();
+        drag = { k, sx: e.clientX, sy: e.clientY, x0: num(style[k].x), y0: num(style[k].y), w: r.width, h: r.height };
+        node.setPointerCapture(e.pointerId);
+      });
+      node.addEventListener("pointermove", (e) => {
+        if (!drag || drag.k !== k) return;
+        style[k].x = clampS("x", drag.x0 + (e.clientX - drag.sx) / drag.w * 100);
+        style[k].y = clampS("y", drag.y0 + (e.clientY - drag.sy) / drag.h * 100);
+        renderStyle(); syncStyleInputs(); queueSave();
+      });
+      const end = () => { drag = null; };
+      node.addEventListener("pointerup", end);
+      node.addEventListener("pointercancel", end);
+    });
+
+    /* ---------------- ruleta ---------------- */
+    const readOpts = () => cleanOpts($("rOpts").value.split("\n"));
+    function randInt(n) {                       // entero al azar 0..n-1, sin sesgo
+      const lim = Math.floor(0x100000000 / n) * n, b = new Uint32Array(1);
+      do { crypto.getRandomValues(b); } while (b[0] >= lim);
+      return b[0] % n;
+    }
+    const rand01 = () => { const b = new Uint32Array(1); crypto.getRandomValues(b); return b[0] / 0x100000000; };
+    let rPending = {}, rSaveT = null;
+    const queueR = (fields) => {
+      Object.assign(rPending, fields);
+      clearTimeout(rSaveT);
+      rSaveT = setTimeout(() => { const p = rPending; rPending = {}; update(rouletteRef, p).catch(() => flash("rFlash", "No se pudo guardar.")); }, 350);
+    };
+    const restRot = () => { const r = rouletteState().rot; return ((r % TAU) + TAU) % TAU; };
+
+    hooks.roulette = () => {
+      if (document.activeElement !== $("rTitle")) $("rTitle").value = roul.title;
+      if (document.activeElement !== $("rOpts") && !("options" in rPending)) $("rOpts").value = roul.options.join("\n");
+      [["rColorA", "colorA"], ["rColorB", "colorB"], ["rColorT", "textColor"]].forEach(([id, k]) => { if (document.activeElement !== $(id)) $(id).value = roul[k]; });
+      setVis("rVis", roul.visible, "EN PANTALLA", "OCULTA");
+      setVis("rVisTag", roul.visible, "SE ESTÁ MOSTRANDO", "OCULTA EN EL OVERLAY");
+      $("rPrev").classList.toggle("live", roul.visible);
+      $("btnRShow").textContent = roul.visible ? "OCULTAR DEL OVERLAY" : "MOSTRAR EN OVERLAY";
+      $("btnRShow").classList.toggle("primary", !roul.visible);
+      $("rCount").textContent = "(" + readOpts().length + ")";
+    };
+    setInterval(() => {
+      const st = rouletteState();
+      $("btnSpin").disabled = st.spinning;
+      $("btnSpin").textContent = st.spinning ? "GIRANDO..." : "GIRAR";
+      $("rOpts").disabled = st.spinning;
+      const el = $("rWin");
+      if (st.spinning) el.innerHTML = "Girando...";
+      else if (st.done && roul.spin) el.innerHTML = "Salió: <b>" + esc(cleanOpts(roul.spin.opts)[num(roul.spin.winner)] || "") + "</b>";
+      else el.textContent = "Sin ganador en pantalla.";
+    }, 150);
+
+    $("btnRShow").addEventListener("click", () => update(rouletteRef, { visible: !roul.visible }));
+    $("rTitle").addEventListener("input", () => { roul.title = $("rTitle").value; queueR({ title: roul.title.slice(0, 60) }); });
+    $("rOpts").addEventListener("input", () => {
+      const opts = readOpts();
+      $("rCount").textContent = "(" + opts.length + ")";
+      roul.options = opts;
+      // cambiar las opciones quita el ganador anterior de la pantalla
+      queueR({ options: opts, spin: null, rot: restRot() });
+      roul.spin = null;
+    });
+    [["rColorA", "colorA"], ["rColorB", "colorB"], ["rColorT", "textColor"]].forEach(([id, k]) => {
+      $(id).addEventListener("input", () => { roul[k] = $(id).value; queueR({ [k]: roul[k] }); });
+    });
+    $("btnRClear").addEventListener("click", () => update(rouletteRef, { spin: null, rot: restRot() }));
+
+    $("btnSpin").addEventListener("click", async () => {
+      const st = rouletteState();
+      if (st.spinning) return;
+      const opts = readOpts();
+      if (opts.length < 2) { flash("rFlash", "Pon al menos 2 opciones."); return; }
+      clearTimeout(rSaveT);
+      const pend = rPending; rPending = {};
+      const n = opts.length, a = TAU / n;
+      const winner = randInt(n);
+      const u = 0.12 + rand01() * 0.76;                      // dónde cae dentro de la opción
+      const turns = 5 + randInt(4);                         // 5 a 8 vueltas
+      const dur = 6000 + randInt(2500);                     // 6 a 8.5 segundos
+      const r0 = restRot();
+      const target = (((-(winner + u) * a) % TAU) + TAU) % TAU;
+      let delta = target - r0; if (delta < 0) delta += TAU;
+      const spin = { id: INSTANCE + "-" + Date.now(), start: now() + 400, dur, r0, r1: r0 + turns * TAU + delta, winner, opts };
+      try {
+        await update(rouletteRef, { ...pend, options: opts, spin, rot: target });
+      } catch (e) { flash("rFlash", "No se pudo girar."); return; }
+      const won = opts[winner];
+      setTimeout(() => addHistory("ruleta", "Ruleta: salió " + won, null), dur + 500);
+    });
+
+    /* ---------------- descargar overlay ----------------
+       Genera el HTML del overlay con el estilo actual fijo, sin panel ni botón.
+       Sigue conectado a Firebase para el tiempo. */
+    async function downloadOverlay(mode) {
+      let src;
+      try {
+        const r = await fetch(location.pathname, { cache: "no-store" });
+        if (!r.ok) throw new Error();
+        src = await r.text();
+      } catch (e) { flash("dlFlash", "No se pudo leer el archivo. Abre el panel desde GitHub Pages para descargar."); return; }
+      const M = (s) => "<!--" + s + "-->";
+      const cut = (txt, a, b) => { const i = txt.indexOf(a), j = txt.indexOf(b, i); return (i < 0 || j < 0) ? null : [i, j + b.length]; };
+      const js = cut(src, "/*PANEL-ONLY-" + "START*/", "/*PANEL-ONLY-" + "END*/");
+      if (js) src = src.slice(0, js[0]) + src.slice(js[1]);
+      const isR = mode === "ruleta";
+      const st = isR ? cut(src, M("RSTAGE-START"), M("RSTAGE-END")) : cut(src, M("STAGE-START"), M("STAGE-END"));
+      const pn = cut(src, M("PANEL-START"), M("PANEL-END"));
+      if (!st || !pn) { flash("dlFlash", "No se encontró la estructura del archivo."); return; }
+      const stageHtml = src.slice(st[0], st[1]);
+      src = src.slice(0, pn[0]) + stageHtml + src.slice(pn[1]);
+      const lg = cut(src, M("LOGIN-START"), M("LOGIN-END"));
+      if (lg) src = src.slice(0, lg[0]) + src.slice(lg[1]);
+      src = src.replace("<title>Timer grayinner</title>", "<title>Overlay " + (isR ? "ruleta " : "timer ") + TW_CHANNEL + "</title>");
+      const baked = "<script>window.__OVERLAY = " + JSON.stringify(isR ? { mode: "ruleta" } : { style }) + ";<\/script>\n";
+      src = src.replace('<script type="module">', baked + '<script type="module">');
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([src], { type: "text/html" }));
+      a.download = "overlay-" + (isR ? "ruleta-" : "") + TW_CHANNEL + ".html";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      flash("dlFlash", isR ? "Overlay de ruleta descargado." : "Overlay del timer descargado con el estilo actual.");
+    }
+    $("btnDownload").addEventListener("click", () => downloadOverlay("timer"));
+    $("btnDownloadR").addEventListener("click", () => downloadOverlay("ruleta"));
+    $("rouletteLink").href = location.pathname + "?ruleta";
+
+    $("displayLink").href = location.pathname + "?display";
+  }
+  /*PANEL-ONLY-END*/
+</script>
+</body>
+</html>
