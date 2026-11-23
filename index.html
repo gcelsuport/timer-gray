@@ -268,6 +268,7 @@
   .up-start { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 8px; }
   .up-start .up-lbl { font-size: 11px; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
   .up-start .up-val { font-size: 15px; color: var(--text); }
+  #upStartInput { min-width: 230px; color-scheme: dark; }
   #btnUpShow.on { border-color: var(--accent-2); color: var(--accent-2); background: rgba(0,194,255,.1); }
 
   /* multiplicador */
@@ -720,7 +721,9 @@
           <input type="datetime-local" id="upStartInput" step="1">
           <button class="fit" id="btnUpSave">GUARDAR INICIO</button>
           <button class="fit primary" id="btnUpNow">EMPEZAR AHORA</button>
+          <button class="fit danger" id="btnUpReset">RESETEAR A 0</button>
         </div>
+        <div class="flash" id="upFlash" style="margin-top:0;"></div>
       </div>
     </div>
   </div>
@@ -1757,14 +1760,17 @@
       $("upStartVal").textContent = uptime.start
         ? new Date(uptime.start).toLocaleString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" })
         : "Sin definir";
-      if (uptime.start && document.activeElement !== $("upStartInput")) $("upStartInput").value = toLocalInput(uptime.start);
+      if (document.activeElement !== $("upStartInput")) $("upStartInput").value = uptime.start ? toLocalInput(uptime.start) : "";
     };
     setInterval(() => { $("upClock").textContent = fmt(uptimeMs()); }, 250);
     $("btnUpShow").addEventListener("click", () => update(uptimeRef, { visible: !uptime.visible }));
     $("btnUpSave").addEventListener("click", async () => {
       const v = $("upStartInput").value;
       const ms = v ? new Date(v).getTime() : NaN;
-      if (!isFinite(ms)) { $("upStartInput").focus(); return; }
+      if (!isFinite(ms)) { $("upStartInput").focus(); flash("upFlash", "Escribe la fecha y la hora completas."); return; }
+      // evita fechas imposibles (por ejemplo, año 1 al escribir a medias)
+      if (ms > now() + 60000) { flash("upFlash", "Esa hora todavía no llega. Pon una hora de inicio que ya pasó."); return; }
+      if (now() - ms > 7 * 24 * 3600 * 1000) { flash("upFlash", "Esa fecha es de hace más de 7 días. Revisa el día, el mes y el año."); return; }
       await update(uptimeRef, { start: ms });
       addHistory("manual", "Inicio del tiempo total cambiado a " + new Date(ms).toLocaleString("es-MX"), null);
     });
@@ -1772,6 +1778,13 @@
       if (uptime.start && !confirm("¿Reiniciar el tiempo total desde ahora?")) return;
       await update(uptimeRef, { start: now() });
       addHistory("manual", "Tiempo total iniciado desde ahora", null);
+    });
+    $("btnUpReset").addEventListener("click", async () => {
+      if (!confirm("¿Resetear el tiempo total a 00:00:00? Se queda en 0 hasta que le des a EMPEZAR AHORA.")) return;
+      await update(uptimeRef, { start: 0 });
+      $("upStartInput").value = "";
+      addHistory("manual", "Tiempo total reseteado a 0", null);
+      flash("upFlash", "Tiempo total en 0.");
     });
 
     /* ---------------- multiplicador ---------------- */
